@@ -6,6 +6,16 @@
 
 Build a complete, production-shaped e-commerce **storefront + single-admin panel** for a Malaysian gym/lifestyle apparel brand called **CRAZYWORK**. Generate the full app in one pass. Currency is Malaysian Ringgit, displayed as `RM 1,500.00`. All external integrations must be **stubbed behind interfaces** (no real API keys) — a developer will wire them later.
 
+## Reference the existing site for layout & context (re-skin, don't reinvent)
+This is a **migration/rebuild** of an existing CRAZYWORK store, not a greenfield concept. **Study the current site first and preserve its information architecture, page set, content, and product structure — then restyle it cleaner per the design direction below.** Keep what works; fix the known issues listed.
+- **Live site to study:** `https://crazywear-jioq6vwp.manus.space` — mirror its navigation, page set, hero/marquee idea, product layout, drops concept, and copy/tone.
+- **Brand assets in `reference/`:** `brand_kit_Barlow font.html` (typography + colour system) and `crazywork_peach_split_variants.html` (peach theme layout exploration) — match these.
+- **Existing pages to recreate (and restyle):** Home, Shop, Product Detail, Cart, Checkout, Payment Success, Customer Auth, Customer Orders, Drops, Mindset, Our Story, Blog/Collab, Admin Orders, 404. Add the new ones called out later (FAQ, Community, multi-post Blog, full admin).
+- **Existing components to carry forward (restyled):** Navbar, Footer, ProductCard, CountdownTimer (reuse on the current drop), EmailPopup (the 10% capture). Drop Manus-specific bits (AIChatBox, Map, ManusDialog).
+- **Known issues from the current site to FIX in this build:** clicking a product must open straight on its detail view (no scroll-up); replace "quick view" with "Add to Cart"; add sold-out tabs for previous drops; add the slide-out cart drawer; add a size guide; remove COD.
+
+Use the existing site as the **structural and content reference**; use the design direction below for the **visual upgrade**.
+
 ## Stack (use exactly this)
 - Next.js 15 (App Router) + React 19 + TypeScript
 - Tailwind CSS 4 + shadcn/ui (Radix) components + framer-motion
