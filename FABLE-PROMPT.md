@@ -16,12 +16,24 @@ This is a **migration/rebuild** of an existing CRAZYWORK store, not a greenfield
 
 Use the existing site as the **structural and content reference**; use the design direction below for the **visual upgrade**.
 
+## Development method — Test-Driven Development (required)
+Build this **test-first, in vertical slices** (tracer bullets), not big-bang. For each behavior below: **RED** (write one failing test against the public interface) → **GREEN** (write the minimal code to pass) → **refactor** → next test. Do **not** write all tests up front then all code, and do **not** mock internal collaborators — tests must exercise real code paths and assert observable behavior so they survive refactors. Use **Vitest**. Prioritise business logic over UI. Drive these modules with tests first:
+- **`lib/discount.ts`** — best-single-discount selection; quantity_tier boundary (exactly at threshold vs one below); cart_total_tier; buy_x_get_y; free_shipping_over zeroes the shipping fee; expired/inactive campaign ignored; priority breaks ties; campaign vs code → larger wins; never trust a client total.
+- **`lib/promoCode.ts`** — wrong email rejected; expired rejected; second use rejected; locks to first authenticated user; other account rejected after lock; guest with matching email allowed; one-code-per-email reuse.
+- **`lib/crypto.ts`** — encrypt→decrypt round-trips; tampered ciphertext/auth-tag fails verification; no plaintext leaks.
+- **Stock/variant logic** — add-to-cart blocked at zero stock; stock decrements on paid order; sold-out state derived correctly.
+- **Pricing/checkout total** — line items + shipping by zone + discount computed correctly server-side before payment.
+- **Order + (stub) webhook** — order persists with correct items/variants/total; status transitions; confirmation + owner alert fire on paid.
+- **Auth safeguard** — customer signup always `customer`; admin role not self-assignable; protected `/admin/*` rejects non-superadmin.
+Ship the test files alongside the code; `npm test` must pass green.
+
 ## Stack (use exactly this)
 - Next.js 15 (App Router) + React 19 + TypeScript
 - Tailwind CSS 4 + shadcn/ui (Radix) components + framer-motion
 - Hono mounted as a catch-all API route at `app/api/[[...route]]/route.ts`, with a type-safe `hono/client`
 - Prisma ORM against **PostgreSQL** (connection via `DATABASE_URL`; a `docker-compose.yml` provides local Postgres)
 - **Better Auth** for authentication
+- **Vitest** for unit/integration tests (TDD per the method above)
 - SSR/SSG for storefront, product, blog, and collab pages (SEO); client components for cart and interactivity
 
 ## Brand & design
@@ -101,9 +113,10 @@ One superadmin (from env); SiteSetting defaults (shipping rates, upsell enabled 
 Server-render product/blog/collab pages; per-page `<title>`/meta + Open Graph; `sitemap.xml`; `robots.txt`; semantic markup; Next image optimization.
 
 ## Quality
+- **Develop test-first (TDD)** per the Development method section: one failing test → minimal code → refactor, in vertical slices. Tests assert behavior through public interfaces; no mocking of internal collaborators. `npm test` must be green.
 - Put all external calls behind the four stub interfaces so swapping to real SDKs is a one-file change.
 - Compute money/discounts server-side. Never store or log plaintext secrets.
-- Provide `docker-compose.yml` (Postgres), `.env.example`, Prisma migrations, and a seed script. Include a few unit tests for `lib/discount.ts` (best-single selection, tier boundaries) and `lib/promoCode.ts` (wrong email, second use, other account after lock, guest with matching email).
-- App must run with: `docker compose up -d` → `cp .env.example .env` → `prisma migrate dev` + seed → `npm run dev`.
+- Provide `docker-compose.yml` (Postgres), `.env.example`, Prisma migrations, a seed script, and the Vitest suite covering the modules listed in the Development method section.
+- App must run with: `docker compose up -d` → `cp .env.example .env` → `prisma migrate dev` + seed → `npm run dev`; tests run with `npm test`.
 
 ---
