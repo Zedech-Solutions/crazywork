@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@theme {
+  /* CRAZYWORK brand kit */
+  --color-peach: #faefe0;
+  --color-ink: #1a1a1a;
+  --color-ember: #d45c00;
+  --color-sand: #f0e8dc;
+  --color-warmgrey: #c4b5a3;
+  --color-brown: #7a6a5a;
+
+  --font-display: var(--font-barlow-condensed), "Barlow Condensed", sans-serif;
+  --font-body: var(--font-barlow), "Barlow", sans-serif;
+
+  --animate-marquee: marquee 30s linear infinite;
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-slide-in-right: slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-pop-in: pop-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-rise: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+body {
+  background: var(--color-peach);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+@utility headline {
+  font-family: var(--font-display);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 0.95;
+}
+
+@utility subhead {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+::selection {
+  background: var(--color-ember);
+  color: var(--color-peach);
+}
+
+/* Admin panel adopts a softer, rounded dashboard aesthetic — distinct from the
+   storefront's square brutalism. :where() keeps specificity at zero so any
+   explicit Tailwind radius utility (rounded-full, rounded-none) still wins. */
+.admin-scope :where(input, select, textarea, button) {
+  border-radius: 0.5rem;
+}
+.admin-scope :where(table) {
+  border-radius: 0.5rem;
+}

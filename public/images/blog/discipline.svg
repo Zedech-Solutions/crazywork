@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#090807"/><stop offset="1" stop-color="#141009"/></linearGradient>
+    <radialGradient id="dawn" cx="0.75" cy="0.25" r="0.5"><stop offset="0" stop-color="#d45c00" stop-opacity="0.22"/><stop offset="1" stop-color="#d45c00" stop-opacity="0"/></radialGradient>
+    <filter id="g"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.08"/></feComponentTransfer><feComposite operator="over" in2="SourceGraphic"/></filter>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect width="1600" height="1000" fill="url(#dawn)"/>
+  <ellipse cx="800" cy="700" rx="160" ry="260" fill="#0b0908"/>
+  <ellipse cx="800" cy="420" rx="70" ry="74" fill="#0d0b09"/>
+  <rect x="100" y="940" width="1400" height="6" fill="#1d1812"/>
+  <text x="80" y="910" font-family="Arial Black, sans-serif" font-size="28" letter-spacing="10" fill="#3a3128">5:47AM — NOBODY WATCHING</text>
+  <rect width="1600" height="1000" filter="url(#g)" opacity="0.6"/>
+</svg>

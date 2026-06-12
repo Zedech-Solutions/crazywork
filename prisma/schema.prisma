@@ -93,6 +93,7 @@ model Product {
   isLimited   Boolean          @default(false)
   status      ProductStatus    @default(draft)
   externalUrl String? // optional IG/marketplace link
+  sizeGuide   Json? // per-product override; null → use the global default
   dropId      String?
   drop        Drop?            @relation(fields: [dropId], references: [id])
   variants    ProductVariant[]
@@ -192,7 +193,8 @@ model OrderItem {
   productName String // snapshot
   size      String
   colour    String
-  unitPrice Decimal @db.Decimal(10, 2)
+  unitPrice Decimal  @db.Decimal(10, 2)
+  costPrice Decimal? @db.Decimal(10, 2) // snapshot at order time → profit/margin
   quantity  Int
 }
 
@@ -290,8 +292,9 @@ model ContentBlock {
 
 model CommunityPhoto {
   id        String  @id @default(cuid())
-  imageUrl  String // R2
+  imageUrl  String? // R2 upload, or a fetched IG thumbnail; null for link-only items
   caption   String?
+  postUrl   String? // Instagram (or other) post link
   sortOrder Int     @default(0)
   published Boolean @default(true)
 }

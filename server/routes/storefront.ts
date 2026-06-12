@@ -1,0 +1,234 @@
+import { Hono } from "hono";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { issueCodeForEmail } from "@/lib/codes";
+import { nextTierGap } from "@/lib/discount";
+import { mailer } from "@/lib/integrations/mailer";
+import { payment } from "@/lib/integrations/payment";
+import {
+  markOrderPaid,
+  placeOrder,
+  priceCart,
+  type CheckoutItemInput,
+  type ShippingZone,
+} from "@/lib/orders";
+import { getSettings } from "@/lib/settings";
+import { renderUpsellMessage } from "@/lib/upsell";
+
+export const storefront = new Hono();
+
+async function sessionFor(headers: Headers) {
+  return auth.api.getSession({ headers });
+}
+
+function parseItems(raw: unknown): CheckoutItemInput[] | null {
+  if (!Array.isArray(raw)) return null;
+  const items: CheckoutItemInput[] = [];
+  for (const entry of raw) {
+    if (
+      typeof entry?.variantId !== "string" ||
+      typeof entry?.quantity !== "number" ||
+      entry.quantity < 1
+    ) {
+      return null;
+    }
+    items.push({ variantId: entry.variantId, quantity: Math.floor(entry.quantity) });
+  }
+  return items;
+}
+
+function zoneOf(raw: unknown): ShippingZone {
+  return raw === "east" ? "east" : "west";
+}
+
+// Live cart totals + discount preview. Prices always come from the DB.
+storefront.post("/checkout/quote", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const items = parseItems(body.items);
+  if (!items) return c.json({ ok: false, message: "Invalid cart." }, 400);
+  const session = await sessionFor(c.req.raw.headers);
+  const result = await priceCart({
+    items,
+    shippingZone: zoneOf(body.shippingZone),
+    code: typeof body.code === "string" ? body.code : null,
+    email:
+      typeof body.email === "string" && body.email
+        ? body.email
+        : (session?.user.email ?? ""),
+    userId: session?.user.id ?? null,
+  });
+  return c.json(result, result.ok ? 200 : 422);
+});
+
+// Pre-checkout upsell: fired on Checkout click, never blocks.
+storefront.post("/checkout/upsell", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const items = parseItems(body.items);
+  if (!items) return c.json({ show: false });
+  const settings = await getSettings();
+  if (!settings.preCheckoutUpsellEnabled) return c.json({ show: false });
+
+  const variants = await prisma.productVariant.findMany({
+    where: { id: { in: items.map((i) => i.variantId) } },
+    include: { product: true },
+  });
+  const byId = new Map(variants.map((v) => [v.id, v]));
+  const lines = items
+    .filter((i) => byId.has(i.variantId))
+    .map((i) => ({
+      unitPrice: Math.round(Number(byId.get(i.variantId)!.product.basePrice) * 100),
+      quantity: i.quantity,
+    }));
+  const campaigns = await prisma.campaign.findMany({ where: { active: true } });
+  const gap = nextTierGap({
+    items: lines,
+    campaigns: campaigns.map((cmp) => ({
+      ...cmp,
+      type: cmp.type as "quantity_tier",
+      rules: cmp.rules,
+    })),
+  });
+  if (!gap) return c.json({ show: false });
+  return c.json({
+    show: true,
+    message: renderUpsellMessage(settings.preCheckoutUpsellTemplate, gap),
+  });
+});
+
+storefront.post("/checkout", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const items = parseItems(body.items);
+  const customer = body.customer ?? {};
+  if (
+    !items ||
+    typeof customer.name !== "string" ||
+    !customer.name.trim() ||
+    typeof customer.email !== "string" ||
+    !/.+@.+\..+/.test(customer.email) ||
+    typeof customer.address !== "string" ||
+    !customer.address.trim() ||
+    typeof customer.state !== "string" ||
+    !customer.state.trim()
+  ) {
+    return c.json({ ok: false, message: "Missing checkout details." }, 400);
+  }
+  const session = await sessionFor(c.req.raw.headers);
+  const placed = await placeOrder({
+    items,
+    shippingZone: zoneOf(body.shippingZone),
+    code: typeof body.code === "string" ? body.code : null,
+    customer: {
+      name: customer.name.trim(),
+      email: customer.email.trim(),
+      phone: typeof customer.phone === "string" ? customer.phone.trim() : undefined,
+      address: customer.address.trim(),
+      state: customer.state.trim(),
+    },
+    orderNote: typeof body.orderNote === "string" ? body.orderNote : null,
+    userId: session?.user.id ?? null,
+  });
+  if (!placed.ok) return c.json(placed, 422);
+
+  const checkout = await payment.createCheckout({
+    orderNumber: placed.orderNumber,
+    totalSen: placed.totalSen,
+    customerEmail: customer.email,
+  });
+  return c.json({ ok: true, orderNumber: placed.orderNumber, url: checkout.url });
+});
+
+// Stub success hook — the fake-success page calls this; a real Stripe
+// integration replaces it with the signed webhook below.
+storefront.post("/checkout/fake-paid", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  if (typeof body.orderNumber !== "string") {
+    return c.json({ ok: false }, 400);
+  }
+  const result = await markOrderPaid(body.orderNumber, "stub");
+  return c.json(result, result.ok ? 200 : 404);
+});
+
+storefront.post("/webhook/payment", async (c) => {
+  const event = await payment.verifyWebhook(c.req.raw);
+  if (!event) return c.json({ ok: false }, 400);
+  const result = await markOrderPaid(event.orderNumber, event.paymentMethod);
+  return c.json(result, result.ok ? 200 : 404);
+});
+
+// Email popup capture → 10% first-purchase code (one per email, reused).
+storefront.post("/subscribe", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!/.+@.+\..+/.test(email)) {
+    return c.json({ ok: false, message: "Enter a valid email." }, 400);
+  }
+  await prisma.emailSubscriber.upsert({
+    where: { email },
+    create: { email, source: "popup" },
+    update: {},
+  });
+  const code = await issueCodeForEmail(email, "popup");
+  await mailer.send(email, "welcome_code", { code: code.code });
+  return c.json({ ok: true, code: code.code, percentage: code.percentage });
+});
+
+// Guest order lookup: order number + email must both match.
+storefront.get("/orders/lookup", async (c) => {
+  const orderNumber = c.req.query("orderNumber")?.trim() ?? "";
+  const email = c.req.query("email")?.trim().toLowerCase() ?? "";
+  if (!orderNumber || !email) return c.json({ ok: false }, 400);
+  const order = await prisma.order.findUnique({
+    where: { orderNumber },
+    include: { items: true },
+  });
+  if (!order || order.customerEmail !== email) {
+    return c.json({ ok: false, message: "No order found for that combination." }, 404);
+  }
+  return c.json({
+    ok: true,
+    order: {
+      orderNumber: order.orderNumber,
+      status: order.status,
+      placedAt: order.placedAt,
+      total: order.total,
+      courierName: order.courierName,
+      trackingNumber: order.trackingNumber,
+      items: order.items.map((i) => ({
+        productName: i.productName,
+        size: i.size,
+        colour: i.colour,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+      })),
+    },
+  });
+});
+
+// Signed-in customer: their 10% code (copyable on the profile page).
+storefront.get("/me/code", async (c) => {
+  const session = await sessionFor(c.req.raw.headers);
+  if (!session) return c.json({ ok: false }, 401);
+  const code = await issueCodeForEmail(session.user.email, "signup");
+  return c.json({
+    ok: true,
+    code: code.code,
+    percentage: code.percentage,
+    used: code.used,
+  });
+});
+
+storefront.get("/me/orders", async (c) => {
+  const session = await sessionFor(c.req.raw.headers);
+  if (!session) return c.json({ ok: false }, 401);
+  const orders = await prisma.order.findMany({
+    where: {
+      OR: [
+        { userId: session.user.id },
+        { customerEmail: session.user.email.toLowerCase() },
+      ],
+    },
+    include: { items: true },
+    orderBy: { placedAt: "desc" },
+  });
+  return c.json({ ok: true, orders });
+});

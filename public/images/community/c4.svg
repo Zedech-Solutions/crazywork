@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0c0b0a"/><stop offset="1" stop-color="#120e0a"/></linearGradient>
+    <radialGradient id="spot" cx="0.3" cy="0.25" r="0.45"><stop offset="0" stop-color="#d45c00" stop-opacity="0.12"/><stop offset="1" stop-color="#d45c00" stop-opacity="0"/></radialGradient>
+    <filter id="g"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.09"/></feComponentTransfer><feComposite operator="over" in2="SourceGraphic"/></filter>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <rect width="800" height="800" fill="url(#spot)"/>
+  <circle cx="320" cy="280" r="62" fill="#0d0b09"/>
+  <circle cx="500" cy="300" r="58" fill="#0e0c0a"/>
+  <rect x="250" y="360" width="320" height="240" rx="20" fill="#100e0b"/>
+  <text x="40" y="760" font-family="Arial, sans-serif" font-size="18" letter-spacing="5" fill="#3a3128">@TEAM.CW — 5:47AM CLUB</text>
+  <rect width="800" height="800" filter="url(#g)" opacity="0.6"/>
+</svg>

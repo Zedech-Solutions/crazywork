@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#090808"/><stop offset="1" stop-color="#161210"/></linearGradient>
+    <filter id="g"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.08"/></feComponentTransfer><feComposite operator="over" in2="SourceGraphic"/></filter>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg)"/>
+  <path d="M290 340 L510 340 L540 640 L430 640 L400 480 L370 640 L260 640 Z" fill="#121110" stroke="#272119" stroke-width="3"/>
+  <rect x="290" y="340" width="220" height="30" fill="#0b0a09"/>
+  <text x="470" y="620" text-anchor="end" font-family="Arial Black, sans-serif" font-size="18" letter-spacing="3" fill="#d45c00" opacity="0.6">CW</text>
+  <text x="60" y="950" font-family="Arial, sans-serif" font-size="20" letter-spacing="6" fill="#3a3128">MESH SHORTS — BLACK</text>
+  <rect width="800" height="1000" filter="url(#g)" opacity="0.55"/>
+</svg>

@@ -30,17 +30,23 @@ logs/
 # Testing
 coverage/
 .nyc_output/
+.playwright-mcp/
+# local browser-verification screenshots
+/*.jpeg
 
 # Temp
 tmp/
 temp/
+
+# Admin-uploaded files (Storage stub target)
+public/uploads/*
+!public/uploads/.gitkeep
 
 # Manus remnants (not part of the fresh build)
 .manus/
 .manus-logs/
 .project-config.json
 client/
-server/
 shared/
 drizzle/
 patches/

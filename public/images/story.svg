@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="800" viewBox="0 0 1600 800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a0806"/>
+      <stop offset="0.7" stop-color="#15110c"/>
+      <stop offset="1" stop-color="#040404"/>
+    </linearGradient>
+    <radialGradient id="window" cx="0.2" cy="0.3" r="0.4">
+      <stop offset="0" stop-color="#d45c00" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#d45c00" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.08"/></feComponentTransfer>
+      <feComposite operator="over" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="800" fill="url(#bg)"/>
+  <rect width="1600" height="800" fill="url(#window)"/>
+  <rect x="120" y="430" width="300" height="240" fill="#0c0a08"/>
+  <rect x="520" y="490" width="260" height="180" fill="#0e0b09"/>
+  <rect x="900" y="450" width="180" height="220" fill="#0b0907"/>
+  <rect x="100" y="670" width="1400" height="8" fill="#1d1812"/>
+  <rect width="1600" height="800" filter="url(#grain)" opacity="0.6"/>
+</svg>

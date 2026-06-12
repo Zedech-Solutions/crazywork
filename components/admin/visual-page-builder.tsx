@@ -1,0 +1,337 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { Plus, Trash2, Upload, X } from "lucide-react";
+import { adminFetch, uploadFile } from "@/components/admin/api";
+import type { FormPageKey } from "@/components/admin/page-form-editor";
+import { Button } from "@/components/ui/button";
+import { CheckboxField } from "@/components/ui/checkbox";
+import { Input, Label, Textarea } from "@/components/ui/field";
+import type { MindsetArticle } from "@/lib/content";
+
+function Field({
+  label,
+  value,
+  onChange,
+  textarea,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  textarea?: boolean;
+  hint?: string;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      {textarea ? (
+        <Textarea value={value} onChange={(e) => onChange(e.target.value)} />
+      ) : (
+        <Input value={value} onChange={(e) => onChange(e.target.value)} />
+      )}
+      {hint && <p className="mt-1 text-[11px] text-warmgrey">{hint}</p>}
+    </div>
+  );
+}
+
+function ImageField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (url: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  async function pick(files: FileList | null) {
+    if (!files?.length) return;
+    setBusy(true);
+    try {
+      onChange(await uploadFile(files[0]));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="flex items-center gap-3">
+        <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-lg bg-ink">
+          {value && (
+            <Image src={value} alt="" fill sizes="112px" className="object-cover" />
+          )}
+        </div>
+        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-warmgrey px-3 py-2 text-xs hover:border-ink">
+          <Upload size={13} /> {busy ? "Uploading…" : "Replace"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => pick(e.target.files)}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+const PANEL_TITLES: Record<string, string> = {
+  header: "Header",
+  stories: "Stories",
+  intro: "Intro",
+  footer: "Footer",
+};
+
+// Live visual builder for the non-home pages (mindset / drops / footer) — same
+// iframe + click-an-orange-tag flow as Home, with each page's fields.
+export function VisualPageBuilder({ pageKey }: { pageKey: FormPageKey }) {
+  const [content, setContent] = useState<Record<string, unknown> | null>(null);
+  const [region, setRegion] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    setContent(null);
+    setRegion(null);
+    setReady(false);
+    adminFetch<{ content: Record<string, string> }>(`/page/${pageKey}`)
+      .then((r) => setContent(r.content))
+      .catch((e) => setError(e.message));
+  }, [pageKey]);
+
+  useEffect(() => {
+    function onMsg(e: MessageEvent) {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type === "crazywork:ready") setReady(true);
+      else if (e.data?.type === "crazywork:edit") setRegion(e.data.region);
+    }
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+
+  useEffect(() => {
+    if (ready && content) {
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "crazywork:content", content },
+        window.location.origin,
+      );
+    }
+  }, [ready, content]);
+
+  async function save() {
+    if (!content) return;
+    setBusy(true);
+    setSaved(false);
+    try {
+      await adminFetch(`/page/${pageKey}`, {
+        method: "PUT",
+        body: JSON.stringify({ content }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const set = (key: string, value: string) =>
+    setContent((c) => (c ? { ...c, [key]: value } : c));
+  const str = (key: string) => String(content?.[key] ?? "");
+
+  const articles = (content?.articles as MindsetArticle[]) ?? [];
+  const setArticles = (next: MindsetArticle[]) =>
+    setContent((c) => (c ? { ...c, articles: next } : c));
+  const updateArticle = (i: number, patch: Partial<MindsetArticle>) =>
+    setArticles(articles.map((a, j) => (j === i ? { ...a, ...patch } : a)));
+  const addArticle = () =>
+    setArticles([
+      ...articles,
+      {
+        tag: "Mindset",
+        title: "New story",
+        excerpt: "",
+        readTime: "4 min read",
+        image: "",
+        featured: false,
+      },
+    ]);
+  const removeArticle = (i: number) =>
+    setArticles(articles.filter((_, j) => j !== i));
+
+  if (error) return <p className="text-sm text-red-700">{error}</p>;
+  if (!content) return <p className="text-sm text-brown">Loading…</p>;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center justify-end gap-3 pb-3">
+        {saved && <span className="text-sm text-emerald-700">Saved ✓</span>}
+        <Button variant="accent" onClick={save} disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </Button>
+      </div>
+
+      <div className="flex min-h-0 flex-1 gap-4">
+        <div className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-warmgrey/60 bg-sand/40">
+          {/* key forces a fresh load when switching pages */}
+          <iframe
+            key={pageKey}
+            ref={iframeRef}
+            src={`/preview/${pageKey}`}
+            title={`${pageKey} preview`}
+            className="h-full w-full"
+          />
+        </div>
+
+        {region && (
+          <aside className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl border border-warmgrey/60 bg-white/60">
+            <div className="flex items-center justify-between border-b border-warmgrey/60 px-4 py-3">
+              <p className="subhead text-base">
+                {PANEL_TITLES[region] ?? "Edit"}
+              </p>
+              <button
+                aria-label="Close"
+                className="text-brown hover:text-ember cursor-pointer"
+                onClick={() => setRegion(null)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 space-y-4 overflow-y-auto p-4">
+              {pageKey === "mindset" && region === "header" && (
+                <>
+                  <ImageField
+                    label="Header background image"
+                    value={str("headerImage")}
+                    onChange={(v) => set("headerImage", v)}
+                  />
+                  <Field
+                    label="Small label"
+                    value={str("headerEyebrow")}
+                    onChange={(v) => set("headerEyebrow", v)}
+                  />
+                  <Field
+                    label="Title"
+                    value={str("headerTitle")}
+                    onChange={(v) => set("headerTitle", v)}
+                    textarea
+                    hint="Enter = new line. *word* = orange."
+                  />
+                  <Field
+                    label="Intro text"
+                    value={str("headerSub")}
+                    onChange={(v) => set("headerSub", v)}
+                    textarea
+                  />
+                </>
+              )}
+
+              {pageKey === "mindset" && region === "stories" && (
+                <>
+                  {articles.map((a, i) => (
+                    <div
+                      key={i}
+                      className="space-y-2 rounded-lg border border-warmgrey/60 bg-sand/30 p-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <CheckboxField
+                          label="Featured"
+                          checked={a.featured}
+                          onCheckedChange={(v) => updateArticle(i, { featured: v })}
+                        />
+                        <button
+                          aria-label="Remove story"
+                          className="text-warmgrey hover:text-red-700 cursor-pointer"
+                          onClick={() => removeArticle(i)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <ImageField
+                        label="Image"
+                        value={a.image}
+                        onChange={(v) => updateArticle(i, { image: v })}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Field
+                          label="Tag"
+                          value={a.tag}
+                          onChange={(v) => updateArticle(i, { tag: v })}
+                        />
+                        <Field
+                          label="Read time"
+                          value={a.readTime}
+                          onChange={(v) => updateArticle(i, { readTime: v })}
+                        />
+                      </div>
+                      <Field
+                        label="Title"
+                        value={a.title}
+                        onChange={(v) => updateArticle(i, { title: v })}
+                        textarea
+                      />
+                      <Field
+                        label="Excerpt"
+                        value={a.excerpt}
+                        onChange={(v) => updateArticle(i, { excerpt: v })}
+                        textarea
+                      />
+                    </div>
+                  ))}
+                  <button
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-ember/60 px-3 py-2 text-xs font-medium text-ember hover:bg-ember/10 cursor-pointer"
+                    onClick={addArticle}
+                  >
+                    <Plus size={13} /> Add story
+                  </button>
+                </>
+              )}
+
+              {pageKey === "drops" && (
+                <>
+                  <Field
+                    label="Heading"
+                    value={str("title")}
+                    onChange={(v) => set("title", v)}
+                  />
+                  <Field
+                    label="Description"
+                    value={str("description")}
+                    onChange={(v) => set("description", v)}
+                    textarea
+                  />
+                </>
+              )}
+
+              {pageKey === "footer" && (
+                <>
+                  <Field
+                    label="Tagline (under the wordmark)"
+                    value={str("tagline")}
+                    onChange={(v) => set("tagline", v)}
+                  />
+                  <Field
+                    label="Blurb paragraph"
+                    value={str("blurb")}
+                    onChange={(v) => set("blurb", v)}
+                    textarea
+                  />
+                  <p className="text-[11px] text-warmgrey">
+                    Links &amp; socials are in Settings → Store.
+                  </p>
+                </>
+              )}
+            </div>
+          </aside>
+        )}
+      </div>
+    </div>
+  );
+}

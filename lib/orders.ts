@@ -1,0 +1,430 @@
+import { randomBytes } from "crypto";
+import { prisma } from "@/lib/db";
+import { evaluateCart, type PricingResult } from "@/lib/discount";
+import { toSen } from "@/lib/money";
+import {
+  PROMO_REJECTION_MESSAGES,
+  validatePromoCode,
+  type PromoRejection,
+} from "@/lib/promoCode";
+import { getSettings } from "@/lib/settings";
+import { mailer } from "@/lib/integrations/mailer";
+import { notifier } from "@/lib/integrations/notifier";
+
+export type OrderStatus =
+  | "pending"
+  | "paid"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+
+export type ShippingZone = "west" | "east";
+
+const TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  pending: ["paid", "cancelled"],
+  paid: ["processing", "cancelled"],
+  processing: ["shipped", "cancelled"],
+  shipped: ["delivered"],
+  delivered: [],
+  cancelled: [],
+};
+
+export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
+  return TRANSITIONS[from].includes(to);
+}
+
+export function isVariantSoldOut(variant: { stock: number }): boolean {
+  return variant.stock <= 0;
+}
+
+export function isProductSoldOut(variants: { stock: number }[]): boolean {
+  return variants.every(isVariantSoldOut);
+}
+
+const ORDER_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+export function generateOrderNumber(now = new Date()): string {
+  const stamp = now.toISOString().slice(2, 10).replaceAll("-", "");
+  let suffix = "";
+  for (const byte of randomBytes(4)) {
+    suffix += ORDER_ALPHABET[byte % ORDER_ALPHABET.length];
+  }
+  return `CW-${stamp}-${suffix}`;
+}
+
+// ───────────────────────── pricing ─────────────────────────
+
+export interface CheckoutItemInput {
+  variantId: string;
+  quantity: number;
+}
+
+export interface PricedLine {
+  variantId: string;
+  productId: string;
+  productName: string;
+  size: string;
+  colour: string;
+  unitPrice: number; // sen
+  costPrice: number | null; // sen, snapshot for profit/margin
+  quantity: number;
+}
+
+export type CheckoutError =
+  | { error: "empty_cart"; message: string }
+  | { error: "unknown_variant"; message: string }
+  | { error: "out_of_stock"; message: string; variantId: string }
+  | { error: "invalid_code"; message: string; reason: PromoRejection };
+
+export type PriceCartResult =
+  | ({ ok: false } & CheckoutError)
+  | {
+      ok: true;
+      pricing: PricingResult;
+      lines: PricedLine[];
+      appliedCodeId: string | null;
+      lockToUserId: string | null;
+    };
+
+export async function priceCart(input: {
+  items: CheckoutItemInput[];
+  shippingZone: ShippingZone;
+  code?: string | null;
+  email: string;
+  userId?: string | null;
+  now?: Date;
+}): Promise<PriceCartResult> {
+  if (input.items.length === 0) {
+    return { ok: false, error: "empty_cart", message: "Your cart is empty." };
+  }
+
+  const variants = await prisma.productVariant.findMany({
+    where: { id: { in: input.items.map((i) => i.variantId) } },
+    include: { product: true },
+  });
+  const byId = new Map(variants.map((v) => [v.id, v]));
+
+  const lines: PricedLine[] = [];
+  for (const item of input.items) {
+    const variant = byId.get(item.variantId);
+    if (!variant || variant.product.status !== "active") {
+      return {
+        ok: false,
+        error: "unknown_variant",
+        message: "An item in your cart is no longer available.",
+      };
+    }
+    if (item.quantity < 1 || variant.stock < item.quantity) {
+      return {
+        ok: false,
+        error: "out_of_stock",
+        message: `${variant.product.name} (${variant.size}/${variant.colour}) is sold out.`,
+        variantId: variant.id,
+      };
+    }
+    lines.push({
+      variantId: variant.id,
+      productId: variant.productId,
+      productName: variant.product.name,
+      size: variant.size,
+      colour: variant.colour,
+      unitPrice: toSen(variant.product.basePrice),
+      costPrice: variant.costPrice != null ? toSen(variant.costPrice) : null,
+      quantity: item.quantity,
+    });
+  }
+
+  const settings = await getSettings();
+  const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+  const baseShipping =
+    input.shippingZone === "east" ? settings.shippingEast : settings.shippingWest;
+  // store-level free-shipping threshold (campaigns can also waive it)
+  const shippingFee =
+    subtotal >= settings.freeShippingThreshold ? 0 : baseShipping;
+
+  const campaigns = await prisma.campaign.findMany({ where: { active: true } });
+
+  let appliedCode: { code: string; percentage: number } | null = null;
+  let appliedCodeId: string | null = null;
+  let lockToUserId: string | null = null;
+  if (input.code?.trim()) {
+    const record = await prisma.discountCode.findUnique({
+      where: { code: input.code.trim().toUpperCase() },
+    });
+    const validation = validatePromoCode({
+      record,
+      email: input.email,
+      userId: input.userId,
+      now: input.now,
+    });
+    if (!validation.ok) {
+      return {
+        ok: false,
+        error: "invalid_code",
+        message: PROMO_REJECTION_MESSAGES[validation.reason],
+        reason: validation.reason,
+      };
+    }
+    appliedCode = { code: record!.code, percentage: record!.percentage };
+    appliedCodeId = record!.id;
+    lockToUserId = validation.lockToUserId;
+  }
+
+  const pricing = evaluateCart({
+    items: lines,
+    campaigns: campaigns.map((c) => ({
+      ...c,
+      type: c.type as "quantity_tier",
+      rules: c.rules,
+    })),
+    code: appliedCode,
+    shippingFee,
+    now: input.now,
+  });
+
+  return { ok: true, pricing, lines, appliedCodeId, lockToUserId };
+}
+
+// ───────────────────────── order placement ─────────────────────────
+
+const toRM = (sen: number) => (sen / 100).toFixed(2);
+
+export interface PlaceOrderInput {
+  items: CheckoutItemInput[];
+  shippingZone: ShippingZone;
+  code?: string | null;
+  customer: {
+    name: string;
+    email: string;
+    phone?: string;
+    address: string;
+    state: string;
+  };
+  orderNote?: string | null;
+  userId?: string | null;
+}
+
+export type PlaceOrderResult =
+  | ({ ok: false } & CheckoutError)
+  | { ok: true; orderId: string; orderNumber: string; totalSen: number };
+
+export async function placeOrder(
+  input: PlaceOrderInput,
+): Promise<PlaceOrderResult> {
+  const priced = await priceCart({
+    items: input.items,
+    shippingZone: input.shippingZone,
+    code: input.code,
+    email: input.customer.email,
+    userId: input.userId,
+  });
+  if (!priced.ok) return priced;
+
+  const { pricing, lines } = priced;
+  const codeConsumed = pricing.discountSource === "code";
+
+  const order = await prisma.$transaction(async (tx) => {
+    if (codeConsumed && priced.appliedCodeId) {
+      // race-safe single-use: only flips if still unused
+      const consumed = await tx.discountCode.updateMany({
+        where: { id: priced.appliedCodeId, used: false },
+        data: {
+          used: true,
+          ...(priced.lockToUserId ? { lockedUserId: priced.lockToUserId } : {}),
+        },
+      });
+      if (consumed.count === 0) {
+        throw new Error("code_already_used");
+      }
+    }
+    return tx.order.create({
+      data: {
+        orderNumber: generateOrderNumber(),
+        userId: input.userId ?? null,
+        customerName: input.customer.name,
+        customerEmail: input.customer.email.trim().toLowerCase(),
+        customerPhone: input.customer.phone ?? null,
+        shippingAddress: input.customer.address,
+        shippingState: input.customer.state,
+        shippingZone: input.shippingZone,
+        shippingFee: toRM(pricing.shippingFee),
+        subtotal: toRM(pricing.subtotal),
+        discountAmount: toRM(pricing.discountAmount),
+        total: toRM(pricing.total),
+        appliedDiscountLabel: pricing.discountLabel,
+        discountCodeId: codeConsumed ? priced.appliedCodeId : null,
+        orderNote: input.orderNote ?? null,
+        items: {
+          create: lines.map((line) => ({
+            productId: line.productId,
+            productName: line.productName,
+            size: line.size,
+            colour: line.colour,
+            unitPrice: toRM(line.unitPrice),
+            costPrice: line.costPrice != null ? toRM(line.costPrice) : null,
+            quantity: line.quantity,
+          })),
+        },
+      },
+    });
+  });
+
+  await mailer.send(order.customerEmail, "order_confirmation", {
+    orderNumber: order.orderNumber,
+    total: toRM(pricing.total),
+    items: lines.map(
+      (l) => `${l.quantity}× ${l.productName} (${l.size}/${l.colour})`,
+    ),
+  });
+
+  return {
+    ok: true,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    totalSen: pricing.total,
+  };
+}
+
+// ───────────────────────── payment / fulfilment ─────────────────────────
+
+export async function markOrderPaid(
+  orderNumber: string,
+  paymentMethod = "stub",
+): Promise<{ ok: boolean; alreadyPaid?: boolean }> {
+  const result = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { orderNumber },
+      include: { items: true },
+    });
+    if (!order) return { ok: false as const };
+    if (order.status !== "pending") {
+      return { ok: order.status === "paid", alreadyPaid: true };
+    }
+
+    for (const item of order.items) {
+      const variant = await tx.productVariant.findUnique({
+        where: {
+          productId_size_colour: {
+            productId: item.productId,
+            size: item.size,
+            colour: item.colour,
+          },
+        },
+      });
+      if (variant) {
+        await tx.productVariant.update({
+          where: { id: variant.id },
+          data: { stock: Math.max(0, variant.stock - item.quantity) },
+        });
+      }
+    }
+
+    const updated = await tx.order.update({
+      where: { id: order.id },
+      data: { status: "paid", paymentMethod },
+      include: { items: true },
+    });
+    return { ok: true as const, order: updated };
+  });
+
+  if (result.ok && "order" in result && result.order) {
+    const order = result.order;
+    await notifier.orderPlaced({
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      totalSen: toSen(order.total),
+      itemSummary: order.items
+        .map((i) => `${i.quantity}× ${i.productName} (${i.size}/${i.colour})`)
+        .join(", "),
+    });
+  }
+  return { ok: result.ok, alreadyPaid: "alreadyPaid" in result ? result.alreadyPaid : undefined };
+}
+
+export async function updateOrderStatus(
+  orderId: string,
+  next: OrderStatus,
+  opts: { courierName?: string; trackingNumber?: string } = {},
+): Promise<{ ok: boolean; message?: string }> {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) return { ok: false, message: "Order not found." };
+
+  if (next === "paid") {
+    const result = await markOrderPaid(order.orderNumber, "manual");
+    return result.ok
+      ? { ok: true }
+      : { ok: false, message: "Order cannot be marked paid." };
+  }
+
+  if (!canTransition(order.status as OrderStatus, next)) {
+    return { ok: false, message: `Cannot move ${order.status} → ${next}.` };
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: next,
+      ...(opts.courierName !== undefined ? { courierName: opts.courierName } : {}),
+      ...(opts.trackingNumber !== undefined
+        ? { trackingNumber: opts.trackingNumber }
+        : {}),
+    },
+  });
+
+  await mailer.send(updated.customerEmail, "order_status_change", {
+    orderNumber: updated.orderNumber,
+    status: next,
+    courierName: updated.courierName,
+    trackingNumber: updated.trackingNumber,
+  });
+
+  return { ok: true };
+}
+
+// ───────────────────────── CSV export ─────────────────────────
+
+export interface CsvOrderRow {
+  orderNumber: string;
+  placedAt: Date;
+  customerName: string;
+  customerEmail: string;
+  status: string;
+  shippingZone: string;
+  subtotalSen: number;
+  discountAmountSen: number;
+  shippingFeeSen: number;
+  totalSen: number;
+  appliedDiscountLabel: string | null;
+  trackingNumber: string | null;
+  itemSummary: string;
+}
+
+function csvCell(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
+export function ordersToCsv(rows: CsvOrderRow[]): string {
+  const header =
+    "Order,Date,Customer,Email,Status,Zone,Subtotal,Discount,Shipping,Total,Discount Label,Tracking,Items";
+  const body = rows.map((row) =>
+    [
+      row.orderNumber,
+      row.placedAt.toISOString(),
+      row.customerName,
+      row.customerEmail,
+      row.status,
+      row.shippingZone,
+      toRM(row.subtotalSen),
+      toRM(row.discountAmountSen),
+      toRM(row.shippingFeeSen),
+      toRM(row.totalSen),
+      row.appliedDiscountLabel ?? "",
+      row.trackingNumber ?? "",
+      row.itemSummary,
+    ]
+      .map(csvCell)
+      .join(","),
+  );
+  return [header, ...body].join("\n") + "\n";
+}

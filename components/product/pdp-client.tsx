@@ -1,0 +1,302 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import { Badge } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
+import { SizeGuide } from "@/components/site/size-guide";
+import { useCart } from "@/components/cart/cart-context";
+import { formatRM } from "@/lib/money";
+import type { SizeGuideTable } from "@/lib/size-guide";
+import { cn } from "@/lib/utils";
+
+export interface PdpVariant {
+  id: string;
+  size: string;
+  colour: string;
+  stock: number;
+}
+
+export interface PdpProduct {
+  productId: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  basePriceSen: number;
+  isNew: boolean;
+  isLimited: boolean;
+  images: { url: string; alt: string }[];
+  variants: PdpVariant[];
+}
+
+export function PdpClient({
+  product,
+  sizeGuide,
+}: {
+  product: PdpProduct;
+  sizeGuide: SizeGuideTable;
+}) {
+  const cart = useCart();
+  const sizes = useMemo(
+    () => [...new Set(product.variants.map((v) => v.size))],
+    [product.variants],
+  );
+  const colours = useMemo(
+    () => [...new Set(product.variants.map((v) => v.colour))],
+    [product.variants],
+  );
+  const [size, setSize] = useState(sizes[0] ?? "");
+  const [colour, setColour] = useState(colours[0] ?? "");
+  const [imageIndex, setImageIndex] = useState(0);
+  const [showSticky, setShowSticky] = useState(false);
+  const ctaRef = useRef<HTMLDivElement>(null);
+
+  const selected = product.variants.find(
+    (v) => v.size === size && v.colour === colour,
+  );
+  const soldOut = !selected || selected.stock <= 0;
+  const allSoldOut = product.variants.every((v) => v.stock <= 0);
+
+  useEffect(() => {
+    const target = ctaRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowSticky(!entry.isIntersecting),
+      { rootMargin: "-56px 0px 0px 0px" },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
+  function stockFor(checkSize: string, checkColour: string) {
+    return (
+      product.variants.find((v) => v.size === checkSize && v.colour === checkColour)
+        ?.stock ?? 0
+    );
+  }
+
+  function addToCart() {
+    if (!selected || soldOut) return;
+    cart.addLine({
+      variantId: selected.id,
+      productId: product.productId,
+      slug: product.slug,
+      name: product.name,
+      size: selected.size,
+      colour: selected.colour,
+      unitPriceSen: product.basePriceSen,
+      image: product.images[0]?.url ?? null,
+      maxStock: selected.stock,
+    });
+  }
+
+  const image = product.images[imageIndex] ?? product.images[0];
+
+  return (
+    <>
+      <div className="grid gap-10 lg:grid-cols-[7fr_5fr]">
+        {/* GALLERY */}
+        <div>
+          <div className="relative aspect-[4/5] overflow-hidden bg-ink">
+            {image && (
+              <Image
+                src={image.url}
+                alt={image.alt}
+                fill
+                priority
+                sizes="(max-width: 1024px) 100vw, 58vw"
+                className="object-cover"
+              />
+            )}
+            <div className="absolute left-3 top-3 flex gap-2">
+              {product.isNew && <Badge tone="ember">New</Badge>}
+              {product.isLimited && <Badge tone="ink">Limited</Badge>}
+            </div>
+          </div>
+          {product.images.length > 1 && (
+            <div className="mt-3 flex gap-2">
+              {product.images.map((img, i) => (
+                <button
+                  key={img.url}
+                  onClick={() => setImageIndex(i)}
+                  className={cn(
+                    "relative h-20 w-16 overflow-hidden bg-ink cursor-pointer border",
+                    i === imageIndex ? "border-ember" : "border-transparent",
+                  )}
+                  aria-label={`Image ${i + 1}`}
+                >
+                  <Image src={img.url} alt={img.alt} fill sizes="64px" className="object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* DETAILS */}
+        <div>
+          {product.category && (
+            <p className="eyebrow text-brown">{product.category}</p>
+          )}
+          <h1 className="headline mt-1 text-5xl">{product.name}</h1>
+          <p className="mt-3 text-2xl font-bold">{formatRM(product.basePriceSen)}</p>
+
+          <div className="mt-8">
+            <div className="flex items-center justify-between">
+              <p className="eyebrow text-brown">Size — {size}</p>
+              <SizeGuide guide={sizeGuide} />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {sizes.map((s) => {
+                const available = colours.some((c) => stockFor(s, c) > 0);
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setSize(s)}
+                    className={cn(
+                      "h-11 min-w-11 border px-3 subhead text-sm transition-colors cursor-pointer",
+                      size === s
+                        ? "border-ink bg-ink text-peach"
+                        : "border-warmgrey hover:border-ink",
+                      !available && "opacity-35 line-through",
+                    )}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <p className="eyebrow text-brown">Colour — {colour}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {colours.map((c) => {
+                const available = stockFor(size, c) > 0;
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setColour(c)}
+                    className={cn(
+                      "h-11 border px-4 subhead text-sm transition-colors cursor-pointer",
+                      colour === c
+                        ? "border-ink bg-ink text-peach"
+                        : "border-warmgrey hover:border-ink",
+                      !available && "opacity-35 line-through",
+                    )}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div ref={ctaRef} className="mt-8">
+            <Button
+              variant="accent"
+              size="lg"
+              className="w-full"
+              disabled={soldOut}
+              onClick={addToCart}
+            >
+              {allSoldOut
+                ? "Sold Out"
+                : soldOut
+                  ? `${size} / ${colour} — Sold Out`
+                  : "Add to Cart"}
+            </Button>
+            {selected && !soldOut && selected.stock <= 3 && (
+              <p className="mt-2 text-center text-xs text-ember">
+                Only {selected.stock} left in {size}/{colour}
+              </p>
+            )}
+          </div>
+
+          {product.description && (
+            <div className="mt-8 border-t border-warmgrey pt-6">
+              <p className="eyebrow mb-2 text-brown">The piece</p>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-ink/85">
+                {product.description}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* STICKY ADD-TO-CART — floating glassy panel (iOS-style) */}
+      <div
+        className={cn(
+          "fixed bottom-4 z-30 transition-all duration-300",
+          "inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2",
+          showSticky
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-[160%] opacity-0",
+        )}
+      >
+        <div className="flex flex-col gap-3 rounded-[1.75rem] border border-white/50 bg-peach/55 px-4 py-3 shadow-[0_12px_44px_rgba(26,26,26,0.22)] backdrop-blur-2xl sm:flex-row sm:items-center sm:gap-5 sm:px-5">
+          <div className="min-w-0">
+            <p className="subhead truncate text-sm leading-none">{product.name}</p>
+            <p className="mt-1 text-sm font-bold leading-none">
+              {formatRM(product.basePriceSen)}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* size */}
+            <div className="flex items-center gap-1">
+              {sizes.map((s) => {
+                const available = colours.some((c) => stockFor(s, c) > 0);
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setSize(s)}
+                    className={cn(
+                      "h-8 min-w-8 rounded-full px-2 subhead text-xs transition-colors cursor-pointer",
+                      size === s
+                        ? "bg-ink text-peach"
+                        : "bg-white/40 text-ink hover:bg-white/70",
+                      !available && "opacity-35 line-through",
+                    )}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+            {/* colour */}
+            <div className="flex items-center gap-1">
+              {colours.map((c) => {
+                const available = stockFor(size, c) > 0;
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setColour(c)}
+                    className={cn(
+                      "h-8 rounded-full px-3 subhead text-xs transition-colors cursor-pointer",
+                      colour === c
+                        ? "bg-ink text-peach"
+                        : "bg-white/40 text-ink hover:bg-white/70",
+                      !available && "opacity-35 line-through",
+                    )}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <Button
+            variant="accent"
+            disabled={soldOut}
+            onClick={addToCart}
+            className="rounded-full sm:ml-1"
+          >
+            {soldOut ? "Sold Out" : "Add to Cart"}
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+}
