@@ -1,0 +1,325 @@
+// CRAZYWORK — draft Prisma schema (rev. 2)
+// Source of truth for the Fable one-shot. Postgres (Docker dev / managed prod).
+// Better Auth manages user/account/session/verification; app fields extended below.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Auth (Better Auth) ─────────────────────────
+
+enum Role {
+  customer
+  superadmin
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          Role      @default(customer) // NEVER self-assignable to superadmin
+  phone         String?
+  address       String?
+  accounts      Account[]
+  sessions      Session[]
+  orders        Order[]
+  lockedCodes   DiscountCode[] // codes locked to this user
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String
+  providerId            String // "credential" | "google"
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String? // hashed, for credential provider
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// ───────────────────────── Catalogue ─────────────────────────
+
+enum ProductStatus {
+  active
+  draft
+}
+
+model Product {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  name        String
+  description String?
+  category    String?
+  basePrice   Decimal          @db.Decimal(10, 2)
+  isNew       Boolean          @default(false)
+  isLimited   Boolean          @default(false)
+  status      ProductStatus    @default(draft)
+  externalUrl String? // optional IG/marketplace link
+  dropId      String?
+  drop        Drop?            @relation(fields: [dropId], references: [id])
+  variants    ProductVariant[]
+  images      ProductImage[]
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model ProductVariant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  size      String
+  colour    String
+  stock     Int     @default(0)
+  sku       String? @unique
+  costPrice Decimal? @db.Decimal(10, 2) // optional, feeds margin preview only
+
+  @@unique([productId, size, colour])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  imageUrl  String // R2
+  alt       String?
+  sortOrder Int     @default(0)
+}
+
+enum DropStatus {
+  current
+  past
+  soldout
+}
+
+model Drop {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  status    DropStatus @default(current)
+  sortOrder Int        @default(0)
+  products  Product[]
+  createdAt DateTime   @default(now())
+}
+
+// ───────────────────────── Orders ─────────────────────────
+
+enum OrderStatus {
+  pending
+  paid
+  processing
+  shipped
+  delivered
+  cancelled
+}
+
+model Order {
+  id                  String      @id @default(cuid())
+  orderNumber         String      @unique
+  userId              String? // null for guest
+  user                User?       @relation(fields: [userId], references: [id])
+  // customer snapshot
+  customerName        String
+  customerEmail       String
+  customerPhone       String?
+  shippingAddress     String
+  shippingState       String
+  shippingZone        String // "west" | "east"
+  shippingFee         Decimal     @db.Decimal(10, 2)
+  // money
+  subtotal            Decimal     @db.Decimal(10, 2)
+  discountAmount      Decimal     @default(0) @db.Decimal(10, 2)
+  total               Decimal     @db.Decimal(10, 2)
+  appliedDiscountLabel String? // "Buy 2 = 5%" or "CRAZY1234"
+  discountCodeId      String?
+  discountCode        DiscountCode? @relation(fields: [discountCodeId], references: [id])
+  // fulfilment
+  status              OrderStatus @default(pending)
+  paymentMethod       String?
+  orderNote           String? // customer free-text request
+  courierName         String?
+  trackingNumber      String?
+  items               OrderItem[]
+  placedAt            DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  productName String // snapshot
+  size      String
+  colour    String
+  unitPrice Decimal @db.Decimal(10, 2)
+  quantity  Int
+}
+
+// ───────────────────────── Discounts ─────────────────────────
+
+enum DiscountSource {
+  popup
+  signup
+}
+
+model DiscountCode {
+  id           String         @id @default(cuid())
+  code         String         @unique
+  issuedEmail  String
+  percentage   Int
+  used         Boolean        @default(false)
+  lockedUserId String? // set permanently on first authenticated redemption
+  lockedUser   User?          @relation(fields: [lockedUserId], references: [id])
+  source       DiscountSource
+  expiresAt    DateTime?
+  orders       Order[]
+  createdAt    DateTime       @default(now())
+
+  @@index([issuedEmail])
+}
+
+enum CampaignType {
+  quantity_tier
+  cart_total_tier
+  buy_x_get_y
+  free_shipping_over
+}
+
+model Campaign {
+  id              String       @id @default(cuid())
+  name            String
+  type            CampaignType
+  rules           Json // tiers / thresholds — shape depends on type
+  active          Boolean      @default(true)
+  startAt         DateTime?
+  endAt           DateTime?
+  priority        Int          @default(0)
+  stacksWithCodes Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model EmailSubscriber {
+  id        String         @id @default(cuid())
+  email     String         @unique
+  source    DiscountSource
+  createdAt DateTime       @default(now())
+}
+
+// ───────────────────────── Content (blog + collab) ─────────────────────────
+
+enum ContentType {
+  blog
+  collab
+}
+
+enum BlockType {
+  heading
+  paragraph
+  image
+  image_grid
+  quote
+  button
+}
+
+model ContentPost {
+  id              String         @id @default(cuid())
+  slug            String         @unique
+  title           String
+  coverImageUrl   String?
+  type            ContentType
+  excerpt         String?
+  published       Boolean        @default(false)
+  publishedAt     DateTime?
+  metaTitle       String?
+  metaDescription String?
+  blocks          ContentBlock[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model ContentBlock {
+  id        String      @id @default(cuid())
+  postId    String
+  post      ContentPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  type      BlockType
+  data      Json // shape depends on type (see FABLE-ONESHOT-CONTEXT §5d)
+  sortOrder Int         @default(0)
+}
+
+model CommunityPhoto {
+  id        String  @id @default(cuid())
+  imageUrl  String // R2
+  caption   String?
+  sortOrder Int     @default(0)
+  published Boolean @default(true)
+}
+
+model Faq {
+  id        String  @id @default(cuid())
+  question  String
+  answer    String
+  category  String?
+  sortOrder Int     @default(0)
+  published Boolean @default(true)
+}
+
+// ───────────────────────── Secrets & settings ─────────────────────────
+
+// AES-256-GCM encrypted runtime secrets (Stripe, Resend, Discord...).
+// Master key is env-only (AES_MASTER_KEY). Decrypted in-memory at call time.
+model EncryptedSecret {
+  key        String   @id // e.g. "stripe_secret_key"
+  ciphertext String
+  iv         String
+  authTag    String
+  updatedAt  DateTime @updatedAt
+}
+
+// Non-secret key/value settings (shipping, social, SSM, upsell copy, alerts...).
+model SiteSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

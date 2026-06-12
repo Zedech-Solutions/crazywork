@@ -1,0 +1,54 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Barlow:wght@700&display=swap');
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+  .card { border-radius: var(--border-radius-lg); overflow: hidden; border: 0.5px solid var(--color-border-tertiary); }
+  .preview { height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  .brand-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: 5px; text-transform: uppercase; }
+  .brand-sub { font-family: 'Barlow', sans-serif; font-weight: 700; font-size: 9px; letter-spacing: 4px; text-transform: uppercase; }
+  .info { padding: 12px 16px; background: var(--color-background-primary); }
+  .name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 4px; }
+  .desc { font-size: 11px; color: var(--color-text-secondary); margin: 0 0 8px; line-height: 1.5; }
+  .swatches { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+  .swatch { width: 16px; height: 16px; border-radius: 3px; border: 0.5px solid rgba(0,0,0,0.1); }
+  .hex { font-size: 10px; color: var(--color-text-tertiary); }
+  .swatch-group { display: flex; align-items: center; gap: 4px; margin-right: 8px; }
+</style>
+
+<h2 class="sr-only">Peach beige background with split orange and black wording for CRAZYWORK</h2>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="preview" style="background:#faefe0;">
+      <span class="brand-name" style="color:#d45c00;">CRAZYWORK</span>
+      <span class="brand-sub" style="color:#1a1a1a;">WEAR WHAT YOU TRAIN FOR</span>
+    </div>
+    <div class="info">
+      <p class="name">Orange brand name + Black tagline</p>
+      <p class="desc">Orange on peach is softer than linen — warmer and more approachable.</p>
+      <div class="swatches">
+        <div class="swatch-group"><div class="swatch" style="background:#faefe0;"></div><span class="hex">#faefe0</span></div>
+        <div class="swatch-group"><div class="swatch" style="background:#d45c00;"></div><span class="hex">#d45c00</span></div>
+        <div class="swatch-group"><div class="swatch" style="background:#1a1a1a;"></div><span class="hex">#1a1a1a</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="preview" style="background:#faefe0;">
+      <span class="brand-name" style="color:#1a1a1a;">CRAZYWORK</span>
+      <span class="brand-sub" style="color:#d45c00;">WEAR WHAT YOU TRAIN FOR</span>
+    </div>
+    <div class="info">
+      <p class="name">Black brand name + Orange tagline</p>
+      <p class="desc">Black on peach has slightly less contrast than linen — softer and gentler feel.</p>
+      <div class="swatches">
+        <div class="swatch-group"><div class="swatch" style="background:#faefe0;"></div><span class="hex">#faefe0</span></div>
+        <div class="swatch-group"><div class="swatch" style="background:#1a1a1a;"></div><span class="hex">#1a1a1a</span></div>
+        <div class="swatch-group"><div class="swatch" style="background:#d45c00;"></div><span class="hex">#d45c00</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>

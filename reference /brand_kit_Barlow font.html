@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRAZYWORK — Brand Kit</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;900&family=Barlow:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --peach: #faefe0;
+    --black: #1a1a1a;
+    --orange: #d45c00;
+    --grey-light: #f0e8dc;
+    --grey-mid: #c4b5a3;
+    --grey-dark: #7a6a5a;
+    --white: #ffffff;
+    --font-display: 'Barlow Condensed', sans-serif;
+    --font-body: 'Barlow', sans-serif;
+  }
+
+  body {
+    background: #faefe0;
+    color: var(--black);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── PAGE WRAPPER ── */
+  .page { max-width: 900px; margin: 0 auto; padding: 60px 40px; }
+
+  /* ── COVER ── */
+  .cover {
+    background: #faefe0;
+    border-radius: 16px;
+    border: 2px solid var(--grey-mid);
+    padding: 80px 60px;
+    margin-bottom: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    right: -40px; top: -40px;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    border: 60px solid rgba(212,92,0,0.08);
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    right: 60px; bottom: -80px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    border: 40px solid rgba(212,92,0,0.05);
+  }
+  .cover-eyebrow {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--orange);
+  }
+  .cover-title {
+    font-family: var(--font-display);
+    font-size: 80px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #1a1a1a;
+    line-height: 1;
+  }
+  .cover-sub {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: #d45c00;
+  }
+  .cover-desc {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--grey-dark);
+    letter-spacing: 1px;
+  }
+
+  /* ── SECTION ── */
+  .section { margin-bottom: 56px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .section-num {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--orange);
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--black);
+  }
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--grey-mid);
+  }
+
+  /* ── COLOUR PALETTE ── */
+  .colour-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+  .colour-swatch {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  .colour-block { height: 100px; }
+  .colour-info { padding: 12px; background: var(--white); }
+  .colour-name { font-size: 12px; font-weight: 700; color: var(--black); letter-spacing: 1px; }
+  .colour-hex { font-size: 11px; color: var(--grey-dark); font-family: monospace; margin-top: 2px; }
+  .colour-use { font-size: 10px; color: var(--grey-mid); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* ── TYPOGRAPHY ── */
+  .type-grid { display: flex; flex-direction: column; gap: 20px; }
+  .type-card {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 28px 32px;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .type-label { font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--grey-dark); margin-bottom: 10px; }
+  .type-display { font-family: var(--font-display); font-weight: 900; font-size: 52px; letter-spacing: 4px; text-transform: uppercase; color: var(--black); line-height: 1; }
+  .type-display-sub { font-family: var(--font-display); font-weight: 700; font-size: 28px; letter-spacing: 3px; text-transform: uppercase; color: var(--black); margin-top: 8px; }
+  .type-body-sample { font-family: var(--font-body); font-size: 16px; color: var(--black); line-height: 1.7; }
+  .type-body-small { font-family: var(--font-body); font-size: 13px; color: var(--grey-dark); line-height: 1.6; }
+  .type-meta { margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee; font-size: 11px; color: var(--grey-mid); letter-spacing: 1px; }
+
+  /* ── LOGO USAGE ── */
+  .logo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .logo-card {
+    border-radius: 12px;
+    padding: 40px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  .logo-text { font-family: var(--font-display); font-weight: 900; font-size: 28px; letter-spacing: 5px; text-transform: uppercase; }
+  .logo-tagline { font-family: var(--font-body); font-weight: 700; font-size: 8px; letter-spacing: 4px; text-transform: uppercase; }
+  .logo-card-label { font-size: 10px; color: var(--grey-dark); letter-spacing: 2px; text-transform: uppercase; text-align: center; }
+
+  /* ── BRAND VOICE ── */
+  .voice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .voice-card {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .voice-icon { font-size: 10px; font-weight: 700; letter-spacing: 3px; color: var(--orange); text-transform: uppercase; margin-bottom: 10px; }
+  .voice-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--black); margin-bottom: 8px; }
+  .voice-desc { font-size: 13px; color: var(--grey-dark); line-height: 1.6; }
+
+  /* ── DO / DON'T ── */
+  .dos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .dos-card { border-radius: 12px; padding: 24px; }
+  .dos-do { background: #f0f7f0; border: 1px solid #b8dbb8; }
+  .dos-dont { background: #fdf0f0; border: 1px solid #e8b8b8; }
+  .dos-label { font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14px; }
+  .dos-label-do { color: #2e7d32; }
+  .dos-label-dont { color: #c62828; }
+  .dos-item { font-size: 13px; line-height: 1.7; color: var(--black); padding-left: 14px; position: relative; margin-bottom: 6px; }
+  .dos-item::before { content: '—'; position: absolute; left: 0; color: var(--grey-mid); }
+
+  /* ── IMAGERY ── */
+  .imagery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+  .imagery-card {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  .imagery-block {
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .imagery-keyword { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; }
+  .imagery-sub { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+  .imagery-info { padding: 12px 14px; background: var(--white); }
+  .imagery-title { font-size: 12px; font-weight: 700; color: var(--black); margin-bottom: 3px; }
+  .imagery-desc { font-size: 11px; color: var(--grey-dark); line-height: 1.5; }
+
+  /* ── FOOTER ── */
+  .footer {
+    margin-top: 60px;
+    padding-top: 28px;
+    border-top: 1px solid var(--grey-mid);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-brand { font-family: var(--font-display); font-size: 18px; font-weight: 900; letter-spacing: 4px; color: #1a1a1a; }
+  .footer-note { font-size: 11px; color: var(--grey-dark); letter-spacing: 1px; }
+
+  @media (max-width: 600px) {
+    .page { padding: 32px 20px; }
+    .cover { padding: 48px 32px; }
+    .cover-title { font-size: 52px; }
+    .dos-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- COVER -->
+  <div class="cover">
+    <span class="cover-eyebrow">Brand Identity Guidelines</span>
+    <h1 class="cover-title">CRAZYWORK</h1>
+    <span class="cover-sub">Wear What You Train For</span>
+    <p class="cover-desc">Version 1.0 &nbsp;·&nbsp; Gym & Lifestyle Apparel &nbsp;·&nbsp; Malaysia</p>
+  </div>
+
+  <!-- 01 COLOUR PALETTE -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2 class="section-title">Colour Palette</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="colour-grid">
+      <div class="colour-swatch">
+        <div class="colour-block" style="background:#faefe0;"></div>
+        <div class="colour-info">
+          <div class="colour-name">Peach Beige</div>
+          <div class="colour-hex">#faefe0</div>
+          <div class="colour-use">Primary Background</div>
+        </div>
+      </div>
+      <div class="colour-swatch">
+        <div class="colour-block" style="background:#1a1a1a;"></div>
+        <div class="colour-info">
+          <div class="colour-name">Near Black</div>
+          <div class="colour-hex">#1a1a1a</div>
+          <div class="colour-use">Primary Text / Logo</div>
+        </div>
+      </div>
+      <div class="colour-swatch">
+        <div class="colour-block" style="background:#d45c00;"></div>
+        <div class="colour-info">
+          <div class="colour-name">Burnt Orange</div>
+          <div class="colour-hex">#d45c00</div>
+          <div class="colour-use">Accent / Tagline</div>
+        </div>
+      </div>
+      <div class="colour-swatch">
+        <div class="colour-block" style="background:#f0e8dc;"></div>
+        <div class="colour-info">
+          <div class="colour-name">Soft Sand</div>
+          <div class="colour-hex">#f0e8dc</div>
+          <div class="colour-use">Secondary Background</div>
+        </div>
+      </div>
+      <div class="colour-swatch">
+        <div class="colour-block" style="background:#c4b5a3;"></div>
+        <div class="colour-info">
+          <div class="colour-name">Warm Grey</div>
+          <div class="colour-hex">#c4b5a3</div>
+          <div class="colour-use">Borders / Dividers</div>
+        </div>
+      </div>
+      <div class="colour-swatch">
+        <div class="colour-block" style="background:#7a6a5a;"></div>
+        <div class="colour-info">
+          <div class="colour-name">Muted Brown</div>
+          <div class="colour-hex">#7a6a5a</div>
+          <div class="colour-use">Secondary Text</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 02 TYPOGRAPHY -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2 class="section-title">Typography</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="type-grid">
+      <div class="type-card">
+        <div class="type-label">Display Font — Barlow Condensed</div>
+        <div class="type-display" style="color:#1a1a1a;">CRAZYWORK</div>
+        <div class="type-display-sub" style="color:#d45c00;">WEAR WHAT YOU TRAIN FOR</div>
+        <div class="type-meta">Barlow Condensed Bold 700 / Black 900 &nbsp;·&nbsp; Use for: Logo, Headlines, Section Titles, Product Names</div>
+      </div>
+      <div class="type-card">
+        <div class="type-label">Body Font — Barlow</div>
+        <div class="type-body-sample">We don't wait to be ready. Starting is the whole point. Rep by rep, you become someone worth respecting.</div>
+        <div style="margin-top: 12px;">
+          <div class="type-body-small">Secondary text, captions, product descriptions, navigation labels — used at 13–15px, weight 400–500.</div>
+        </div>
+        <div class="type-meta">Barlow Regular 400 / Medium 500 &nbsp;·&nbsp; Use for: Body copy, Labels, Captions, UI text</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 03 LOGO USAGE -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2 class="section-title">Logo Usage</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="logo-grid">
+      <div class="logo-card" style="background:#faefe0;">
+        <div>
+          <div class="logo-text" style="color:#1a1a1a;">CRAZYWORK</div>
+          <div class="logo-tagline" style="color:#d45c00; margin-top:6px;">WEAR WHAT YOU TRAIN FOR</div>
+        </div>
+        <div class="logo-card-label">Primary — On Beige</div>
+      </div>
+      <div class="logo-card" style="background:#1a1a1a;">
+        <div>
+          <div class="logo-text" style="color:#faefe0;">CRAZYWORK</div>
+          <div class="logo-tagline" style="color:#d45c00; margin-top:6px;">WEAR WHAT YOU TRAIN FOR</div>
+        </div>
+        <div class="logo-card-label" style="color:#7a6a5a;">Reversed — On Black</div>
+      </div>
+      <div class="logo-card" style="background:#ffffff; border:1px solid #eee;">
+        <div>
+          <div class="logo-text" style="color:#1a1a1a;">CRAZYWORK</div>
+          <div class="logo-tagline" style="color:#d45c00; margin-top:6px;">WEAR WHAT YOU TRAIN FOR</div>
+        </div>
+        <div class="logo-card-label">On White</div>
+      </div>
+      <div class="logo-card" style="background:#d45c00;">
+        <div>
+          <div class="logo-text" style="color:#faefe0;">CRAZYWORK</div>
+          <div class="logo-tagline" style="color:#faefe0; opacity:0.7; margin-top:6px;">WEAR WHAT YOU TRAIN FOR</div>
+        </div>
+        <div class="logo-card-label" style="color:rgba(250,239,224,0.6);">On Brand Orange</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 04 BRAND VOICE -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2 class="section-title">Brand Voice</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="voice-grid">
+      <div class="voice-card">
+        <div class="voice-icon">Tone 01</div>
+        <div class="voice-title">Raw & Direct</div>
+        <div class="voice-desc">No fluff. No motivational poster clichés. We say what we mean. Short sentences. Real talk.</div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-icon">Tone 02</div>
+        <div class="voice-title">Earned, Not Given</div>
+        <div class="voice-desc">We don't celebrate where you're going — we celebrate that you showed up. Progress is personal.</div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-icon">Tone 03</div>
+        <div class="voice-title">Community First</div>
+        <div class="voice-desc">We speak as a collective — "us", "we", "our people". You're not alone in the grind.</div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-icon">Tone 04</div>
+        <div class="voice-title">Quietly Confident</div>
+        <div class="voice-desc">Never arrogant, never desperate. The work speaks. We don't need to shout about it.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 05 IMAGERY STYLE -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2 class="section-title">Imagery Style</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="imagery-grid">
+      <div class="imagery-card">
+        <div class="imagery-block" style="background:#0a0a0a;">
+          <div class="imagery-keyword" style="color:#ffffff;">DARK</div>
+          <div class="imagery-sub" style="color:#555;">Moody & Cinematic</div>
+        </div>
+        <div class="imagery-info">
+          <div class="imagery-title">Dark Environments</div>
+          <div class="imagery-desc">Industrial gyms, dark studios, warehouse settings. Crushed blacks.</div>
+        </div>
+      </div>
+      <div class="imagery-card">
+        <div class="imagery-block" style="background:#1a1a1a;">
+          <div class="imagery-keyword" style="color:#888;">GRAIN</div>
+          <div class="imagery-sub" style="color:#444;">Film Texture</div>
+        </div>
+        <div class="imagery-info">
+          <div class="imagery-title">Film Grain & Texture</div>
+          <div class="imagery-desc">Subtle grain overlay. Avoids overly polished, corporate look.</div>
+        </div>
+      </div>
+      <div class="imagery-card">
+        <div class="imagery-block" style="background:#0d0d0d;">
+          <div class="imagery-keyword" style="color:#c4b5a3;">FOCUS</div>
+          <div class="imagery-sub" style="color:#555;">Single Subject</div>
+        </div>
+        <div class="imagery-info">
+          <div class="imagery-title">Focused Composition</div>
+          <div class="imagery-desc">One athlete, one moment. No clutter. Deep depth of field.</div>
+        </div>
+      </div>
+      <div class="imagery-card">
+        <div class="imagery-block" style="background:#111;">
+          <div class="imagery-keyword" style="color:#d45c00;">RAW</div>
+          <div class="imagery-sub" style="color:#555;">Authentic Effort</div>
+        </div>
+        <div class="imagery-info">
+          <div class="imagery-title">Authentic Movement</div>
+          <div class="imagery-desc">Real effort, real sweat. No overly posed or stock-style shots.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 06 DO'S AND DON'TS -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <h2 class="section-title">Do's & Don'ts</h2>
+      <div class="section-line"></div>
+    </div>
+    <div class="dos-grid">
+      <div class="dos-card dos-do">
+        <div class="dos-label dos-label-do">Do</div>
+        <div class="dos-item">Use Barlow Condensed for all headlines and the logo</div>
+        <div class="dos-item">Keep burnt orange as an accent — use it sparingly</div>
+        <div class="dos-item">Maintain generous white space around the logo</div>
+        <div class="dos-item">Use dark, cinematic photography with film grain</div>
+        <div class="dos-item">Write copy that is short, direct and earned</div>
+        <div class="dos-item">Use all-caps for the brand name always</div>
+      </div>
+      <div class="dos-card dos-dont">
+        <div class="dos-label dos-label-dont">Don't</div>
+        <div class="dos-item">Stretch or distort the logo in any way</div>
+        <div class="dos-item">Use bright orange (#ff6a00) — only burnt orange (#d45c00)</div>
+        <div class="dos-item">Place the logo on busy or cluttered backgrounds</div>
+        <div class="dos-item">Use stock-style, overly polished gym photography</div>
+        <div class="dos-item">Use more than three colours in any single layout</div>
+        <div class="dos-item">Use fonts other than Barlow Condensed and Barlow</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span class="footer-brand">CRAZYWORK</span>
+    <span class="footer-note">Brand Kit v1.0 &nbsp;·&nbsp; Confidential &nbsp;·&nbsp; © 2026 Crazywork</span>
+  </div>
+
+</div>
+</body>
+</html>

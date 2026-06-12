@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crazywork-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crazywork
+      POSTGRES_PASSWORD: crazywork
+      POSTGRES_DB: crazywork
+    ports:
+      - "5432:5432"
+    volumes:
+      - crazywork-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crazywork -d crazywork"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  crazywork-pgdata:

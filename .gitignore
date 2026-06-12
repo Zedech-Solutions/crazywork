@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Environment & secrets
+.env*
+!.env.example
+*.key
+*.pem
+*.crt
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temp
+tmp/
+temp/
+
+# Manus remnants (not part of the fresh build)
+.manus/
+.manus-logs/
+.project-config.json
+client/
+server/
+shared/
+drizzle/
+patches/
+pnpm-lock.yaml
+vite.config.ts
