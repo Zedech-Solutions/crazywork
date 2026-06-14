@@ -455,7 +455,7 @@ export default function AdminProductsPage() {
               </label>
             </div>
             <p className="mt-2 text-xs text-warmgrey">
-              Uploads via Storage stub → /public/uploads (R2 at launch)
+              Uploads are stored on Cloudflare R2.
             </p>
           </section>
 

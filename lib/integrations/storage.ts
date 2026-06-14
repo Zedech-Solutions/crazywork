@@ -1,4 +1,3 @@
-import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { randomBytes } from "crypto";
 import {
@@ -13,28 +12,6 @@ function randomKey(name: string): string {
   return `${Date.now()}-${randomBytes(4).toString("hex")}${ext}`;
 }
 
-// Stub → writes to /public/uploads. Used in dev / when R2 env is absent.
-export class StubStorage implements Storage {
-  private dir = path.join(process.cwd(), "public", "uploads");
-
-  async upload(file: UploadedFile): Promise<{ url: string }> {
-    await mkdir(this.dir, { recursive: true });
-    const filename = randomKey(file.name);
-    await writeFile(path.join(this.dir, filename), file.bytes);
-    return { url: `/uploads/${filename}` };
-  }
-
-  async delete(url: string): Promise<void> {
-    if (!url.startsWith("/uploads/")) return;
-    const filename = path.basename(url);
-    try {
-      await unlink(path.join(this.dir, filename));
-    } catch {
-      // already gone — fine
-    }
-  }
-}
-
 interface R2Env {
   accountId: string;
   accessKeyId: string;
@@ -44,7 +21,7 @@ interface R2Env {
 }
 
 // Cloudflare R2 via the S3-compatible API. Public reads are served from
-// R2_PUBLIC_URL (the bucket's public r2.dev URL or a bound custom domain).
+// R2_PUBLIC_BASE_URL (the bucket's public r2.dev URL or a bound custom domain).
 // Objects live under an "uploads/" prefix.
 export class R2Storage implements Storage {
   private client: S3Client;
@@ -52,17 +29,19 @@ export class R2Storage implements Storage {
   private publicBase: string;
   private prefix = "uploads/";
 
-  constructor(env: R2Env) {
+  constructor(env: R2Env, client?: S3Client) {
     this.bucket = env.bucket;
     this.publicBase = env.publicUrl.replace(/\/$/, "");
-    this.client = new S3Client({
-      region: "auto",
-      endpoint: `https://${env.accountId}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: env.accessKeyId,
-        secretAccessKey: env.secretAccessKey,
-      },
-    });
+    this.client =
+      client ??
+      new S3Client({
+        region: "auto",
+        endpoint: `https://${env.accountId}.r2.cloudflarestorage.com`,
+        credentials: {
+          accessKeyId: env.accessKeyId,
+          secretAccessKey: env.secretAccessKey,
+        },
+      });
   }
 
   async upload(file: UploadedFile): Promise<{ url: string }> {
@@ -88,21 +67,47 @@ export class R2Storage implements Storage {
   }
 }
 
-function readR2Env(): R2Env | null {
-  const accountId = process.env.R2_ACCOUNT_ID;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-  const bucket = process.env.R2_BUCKET;
-  const publicUrl = process.env.R2_PUBLIC_BASE_URL;
-  if (accountId && accessKeyId && secretAccessKey && bucket && publicUrl) {
-    return { accountId, accessKeyId, secretAccessKey, bucket, publicUrl };
+type EnvLike = Record<string, string | undefined>;
+
+const R2_VARS = [
+  "R2_ACCOUNT_ID",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_BUCKET",
+  "R2_PUBLIC_BASE_URL",
+] as const;
+
+// Reads the five R2 vars, throwing if any are missing — storage is R2-only, so
+// the app must be configured to boot (no silent local fallback).
+export function readR2Env(env: EnvLike = process.env): R2Env {
+  const missing = R2_VARS.filter((v) => !env[v]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required R2 env vars: ${missing.join(", ")}`);
   }
-  return null;
+  return {
+    accountId: env.R2_ACCOUNT_ID!,
+    accessKeyId: env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY!,
+    bucket: env.R2_BUCKET!,
+    publicUrl: env.R2_PUBLIC_BASE_URL!,
+  };
 }
 
-// Pick R2 when fully configured, otherwise fall back to the local stub. Go-live
-// is a config flip: set the five R2_* env vars and redeploy.
-const r2Env = readR2Env();
-export const storage: Storage = r2Env
-  ? new R2Storage(r2Env)
-  : new StubStorage();
+export function storageFromEnv(env: EnvLike = process.env): Storage {
+  return new R2Storage(readR2Env(env));
+}
+
+export const storage: Storage = storageFromEnv();
+
+// Best-effort deletion of many object URLs. Falsy and externally-hosted URLs
+// are ignored by the storage guard; failures never bubble up because callers
+// run this after the DB row is already gone.
+export async function deleteObjects(
+  urls: (string | null | undefined)[],
+): Promise<void> {
+  await Promise.allSettled(
+    urls
+      .filter((u): u is string => Boolean(u))
+      .map((u) => storage.delete(u)),
+  );
+}

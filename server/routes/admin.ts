@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { Prisma } from "@prisma/client";
 import { getSuperadminSession } from "@/lib/admin-guard";
 import { prisma } from "@/lib/db";
-import { storage } from "@/lib/integrations/storage";
+import { storage, deleteObjects } from "@/lib/integrations/storage";
+import { removedUrls, contentMediaUrls } from "@/lib/integrations/media-cleanup";
 import {
   createManualOrder,
   ordersToCsv,
@@ -451,6 +452,7 @@ admin.post("/products", async (c) => {
 admin.patch("/products/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
+  let orphanedImages: string[] = [];
   await prisma.$transaction(async (tx) => {
     await tx.product.update({ where: { id }, data: productData(body) });
     if (Array.isArray(body.variants)) {
@@ -472,24 +474,38 @@ admin.patch("/products/:id", async (c) => {
       }
     }
     if (Array.isArray(body.images)) {
+      const newImages = body.images as { imageUrl: string; alt?: string }[];
+      const existing = await tx.productImage.findMany({
+        where: { productId: id },
+        select: { imageUrl: true },
+      });
+      orphanedImages = removedUrls(
+        existing.map((i) => i.imageUrl),
+        newImages.map((i) => i.imageUrl),
+      );
       await tx.productImage.deleteMany({ where: { productId: id } });
       await tx.productImage.createMany({
-        data: (body.images as { imageUrl: string; alt?: string }[]).map(
-          (img, i) => ({
-            productId: id,
-            imageUrl: img.imageUrl,
-            alt: img.alt ?? null,
-            sortOrder: i,
-          }),
-        ),
+        data: newImages.map((img, i) => ({
+          productId: id,
+          imageUrl: img.imageUrl,
+          alt: img.alt ?? null,
+          sortOrder: i,
+        })),
       });
     }
   });
+  await deleteObjects(orphanedImages);
   return c.json({ ok: true });
 });
 
 admin.delete("/products/:id", async (c) => {
-  await prisma.product.delete({ where: { id: c.req.param("id") } });
+  const id = c.req.param("id");
+  const images = await prisma.productImage.findMany({
+    where: { productId: id },
+    select: { imageUrl: true },
+  });
+  await prisma.product.delete({ where: { id } });
+  await deleteObjects(images.map((i) => i.imageUrl));
   return c.json({ ok: true });
 });
 
@@ -812,9 +828,27 @@ admin.post("/content", async (c) => {
 admin.patch("/content/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
-  const existing = await prisma.contentPost.findUnique({ where: { id } });
+  const existing = await prisma.contentPost.findUnique({
+    where: { id },
+    include: { blocks: true },
+  });
   if (!existing) return c.json({ ok: false }, 404);
   const data = postData(body);
+  const newBlocks = blockCreates(body.blocks);
+  const oldMedia = contentMediaUrls(
+    existing.coverImageUrl,
+    existing.blocks.map((b) => ({
+      type: b.type,
+      data: (b.data ?? {}) as Record<string, unknown>,
+    })),
+  );
+  const newMedia = contentMediaUrls(
+    data.coverImageUrl,
+    newBlocks.map((b) => ({
+      type: b.type,
+      data: (b.data ?? {}) as Record<string, unknown>,
+    })),
+  );
   await prisma.$transaction([
     prisma.contentPost.update({
       where: { id },
@@ -827,14 +861,31 @@ admin.patch("/content/:id", async (c) => {
     }),
     prisma.contentBlock.deleteMany({ where: { postId: id } }),
     prisma.contentBlock.createMany({
-      data: blockCreates(body.blocks).map((b) => ({ ...b, postId: id })),
+      data: newBlocks.map((b) => ({ ...b, postId: id })),
     }),
   ]);
+  await deleteObjects(removedUrls(oldMedia, newMedia));
   return c.json({ ok: true });
 });
 
 admin.delete("/content/:id", async (c) => {
-  await prisma.contentPost.delete({ where: { id: c.req.param("id") } });
+  const id = c.req.param("id");
+  const post = await prisma.contentPost.findUnique({
+    where: { id },
+    include: { blocks: true },
+  });
+  await prisma.contentPost.delete({ where: { id } });
+  if (post) {
+    await deleteObjects(
+      contentMediaUrls(
+        post.coverImageUrl,
+        post.blocks.map((b) => ({
+          type: b.type,
+          data: (b.data ?? {}) as Record<string, unknown>,
+        })),
+      ),
+    );
+  }
   return c.json({ ok: true });
 });
 
@@ -893,7 +944,10 @@ admin.patch("/community/:id", async (c) => {
 });
 
 admin.delete("/community/:id", async (c) => {
-  await prisma.communityPhoto.delete({ where: { id: c.req.param("id") } });
+  const id = c.req.param("id");
+  const photo = await prisma.communityPhoto.findUnique({ where: { id } });
+  await prisma.communityPhoto.delete({ where: { id } });
+  await deleteObjects([photo?.imageUrl]);
   return c.json({ ok: true });
 });
 
