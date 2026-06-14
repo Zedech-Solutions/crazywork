@@ -6,9 +6,14 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 // to the client — admin only ever sees a masked hint + configured status.
 
 export const RUNTIME_SECRET_KEYS = [
+  // Stripe test keys (the unprefixed trio is the sandbox/test set).
   "stripe_secret_key",
   "stripe_publishable_key",
   "stripe_webhook_secret",
+  // Stripe live keys — used when stripeMode === "live".
+  "stripe_live_secret_key",
+  "stripe_live_publishable_key",
+  "stripe_live_webhook_secret",
   "resend_api_key",
   "resend_from_email",
   "discord_webhook_url",

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { getSuperadminSession } from "@/lib/admin-guard";
 import { prisma } from "@/lib/db";
 import { storage, deleteObjects } from "@/lib/integrations/storage";
+import { payment } from "@/lib/integrations/payment";
 import { removedUrls, contentMediaUrls } from "@/lib/integrations/media-cleanup";
 import {
   createManualOrder,
@@ -20,7 +21,6 @@ import {
 import {
   RUNTIME_SECRET_KEYS,
   bootSecretStatuses,
-  deleteSecret,
   secretStatuses,
   setSecret,
   type RuntimeSecretKey,
@@ -83,8 +83,9 @@ admin.get("/stats", async (c) => {
     }
   }
 
+  const { lowStockThreshold } = await getSettings();
   const lowStock = await prisma.productVariant.findMany({
-    where: { stock: { lte: 3 } },
+    where: { stock: { lte: lowStockThreshold } },
     include: { product: { select: { name: true } } },
     orderBy: { stock: "asc" },
     take: 8,
@@ -123,6 +124,16 @@ admin.get("/stats", async (c) => {
       stock: p.variants.reduce((s, v) => s + v.stock, 0),
     })),
   });
+});
+
+// Lightweight count of variants at/below the configurable low-stock threshold,
+// for the sidebar restock badge.
+admin.get("/low-stock-count", async (c) => {
+  const { lowStockThreshold } = await getSettings();
+  const count = await prisma.productVariant.count({
+    where: { stock: { lte: lowStockThreshold } },
+  });
+  return c.json({ count });
 });
 
 // Range-aware time series for the dashboard charts (revenue/profit/orders +
@@ -559,12 +570,35 @@ admin.delete("/drops/:id", async (c) => {
 // ───────── orders ─────────
 admin.get("/orders", async (c) => {
   const status = c.req.query("status");
+  const archived = c.req.query("archived") === "true";
+  const { showTestOrders } = await getSettings();
   const orders = await prisma.order.findMany({
-    where: status ? { status: status as OrderStatus } : undefined,
+    where: {
+      // Hide cancelled by default; show them only when explicitly filtered.
+      ...(status
+        ? { status: status as OrderStatus }
+        : { status: { not: "cancelled" } }),
+      ...(showTestOrders ? {} : { isTest: false }),
+      archived,
+    },
     include: { items: true },
     orderBy: { placedAt: "desc" },
   });
   return c.json({ orders });
+});
+
+// Soft delete: archive / restore an order (hidden from the active list, never
+// destroyed — orders are financial records).
+admin.patch("/orders/:id/archive", async (c) => {
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as { archived?: unknown };
+  const order = await prisma.order.findUnique({ where: { id }, select: { id: true } });
+  if (!order) return c.json({ ok: false, message: "Order not found." }, 404);
+  await prisma.order.update({
+    where: { id },
+    data: { archived: body.archived !== false },
+  });
+  return c.json({ ok: true });
 });
 
 // Manual / offline order creation (walk-in sales). Deducts stock when the chosen
@@ -611,6 +645,7 @@ admin.post("/orders", async (c) => {
     note: str(body.note) || null,
     totalSen,
     createCustomer: body.createCustomer === true,
+    paymentMethod: str(body.paymentMethod) || undefined,
   });
   return c.json(result, result.ok ? 200 : 422);
 });
@@ -632,29 +667,42 @@ admin.patch("/variants/:id", async (c) => {
   return c.json({ ok: true, stock });
 });
 
-// Edit the amount paid on an existing order (e.g. an after-the-fact discount).
+// Edit an existing order: amount paid (after-the-fact discount) and/or the
+// recorded payment method.
 admin.patch("/orders/:id", async (c) => {
   const id = c.req.param("id");
-  const body = (await c.req.json().catch(() => ({}))) as { totalSen?: unknown };
-  const totalSen = Math.max(0, Math.round(Number(body.totalSen)));
-  if (!Number.isFinite(totalSen)) {
-    return c.json({ ok: false, message: "Invalid amount." }, 400);
-  }
+  const body = (await c.req.json().catch(() => ({}))) as {
+    totalSen?: unknown;
+    paymentMethod?: unknown;
+  };
   const order = await prisma.order.findUnique({
     where: { id },
     select: { subtotal: true },
   });
   if (!order) return c.json({ ok: false, message: "Order not found." }, 404);
-  const subtotalSen = toSen(order.subtotal);
-  const discountSen = Math.max(0, subtotalSen - totalSen);
-  await prisma.order.update({
-    where: { id },
-    data: {
-      total: (totalSen / 100).toFixed(2),
-      discountAmount: (discountSen / 100).toFixed(2),
-      appliedDiscountLabel: discountSen > 0 ? "Manual adjustment" : null,
-    },
-  });
+
+  const data: Prisma.OrderUpdateInput = {};
+
+  if (body.totalSen !== undefined) {
+    const totalSen = Math.max(0, Math.round(Number(body.totalSen)));
+    if (!Number.isFinite(totalSen)) {
+      return c.json({ ok: false, message: "Invalid amount." }, 400);
+    }
+    const subtotalSen = toSen(order.subtotal);
+    const discountSen = Math.max(0, subtotalSen - totalSen);
+    data.total = (totalSen / 100).toFixed(2);
+    data.discountAmount = (discountSen / 100).toFixed(2);
+    data.appliedDiscountLabel = discountSen > 0 ? "Manual adjustment" : null;
+  }
+
+  if (typeof body.paymentMethod === "string") {
+    data.paymentMethod = body.paymentMethod.trim() || null;
+  }
+
+  if (Object.keys(data).length === 0) {
+    return c.json({ ok: false, message: "Nothing to update." }, 400);
+  }
+  await prisma.order.update({ where: { id }, data });
   return c.json({ ok: true });
 });
 
@@ -662,6 +710,7 @@ admin.patch("/orders/:id", async (c) => {
 // active list filter).
 admin.get("/orders/counts", async (c) => {
   const orders = await prisma.order.findMany({
+    where: { archived: false },
     select: { status: true, items: { select: { quantity: true } } },
   });
   const counts: Record<string, number> = {};
@@ -675,7 +724,24 @@ admin.get("/orders/counts", async (c) => {
 });
 
 admin.get("/orders/export.csv", async (c) => {
+  const status = c.req.query("status");
+  const from = c.req.query("from");
+  const to = c.req.query("to");
+  const archived = c.req.query("archived") === "true";
+  const includeTest = c.req.query("includeTest") === "true";
+
+  const where: Prisma.OrderWhereInput = { archived };
+  if (status) where.status = status as OrderStatus;
+  if (!includeTest) where.isTest = false;
+  if (from || to) {
+    const placedAt: Prisma.DateTimeFilter = {};
+    if (from) placedAt.gte = new Date(`${from}T00:00:00`);
+    if (to) placedAt.lte = new Date(`${to}T23:59:59`);
+    where.placedAt = placedAt;
+  }
+
   const orders = await prisma.order.findMany({
+    where,
     include: { items: true },
     orderBy: { placedAt: "desc" },
   });
@@ -1069,8 +1135,10 @@ admin.put("/secrets/:key", async (c) => {
   const body = await c.req.json();
   const value = typeof body.value === "string" ? body.value.trim() : "";
   if (!value) {
-    await deleteSecret(key);
-    return c.json({ ok: true, configured: false });
+    // No-op: an empty Save must never wipe an already-stored secret (footgun).
+    // Report the current state so the UI status dot stays accurate.
+    const existing = await prisma.encryptedSecret.findUnique({ where: { key } });
+    return c.json({ ok: true, configured: Boolean(existing) });
   }
   await setSecret(key, value);
   return c.json({ ok: true, configured: true });
@@ -1088,4 +1156,9 @@ admin.post("/secrets/:key/test", async (c) => {
     ok: configured,
     message: configured ? "Connection OK (stub)." : "Not configured.",
   });
+});
+
+// Real Stripe connectivity check: pings Stripe with the active mode's secret key.
+admin.post("/integrations/stripe/test", async (c) => {
+  return c.json(await payment.verifyConnection());
 });

@@ -251,11 +251,27 @@ export const DEFAULT_FOOTER_CONTENT: FooterContent = {
     "We don't wait to be ready. Starting is the whole point. Rep by rep, you become someone worth respecting.",
 };
 
+// Order-confirmation page shown after a successful Stripe checkout. The
+// background image is admin-uploadable; empty = the default soft white wash.
+// Both states render blurred behind a frosted card.
+export interface CheckoutSuccessContent {
+  heading: string;
+  subheading: string;
+  backgroundImage: string;
+}
+
+export const DEFAULT_CHECKOUT_SUCCESS_CONTENT: CheckoutSuccessContent = {
+  heading: "Earned.",
+  subheading: "A confirmation email is on the way. We pack, you train.",
+  backgroundImage: "",
+};
+
 export const CONTENT_PAGES = {
   home: DEFAULT_HOME_CONTENT,
   mindset: DEFAULT_MINDSET_CONTENT,
   drops: DEFAULT_DROPS_CONTENT,
   footer: DEFAULT_FOOTER_CONTENT,
+  checkoutSuccess: DEFAULT_CHECKOUT_SUCCESS_CONTENT,
 } as const;
 
 export type ContentPageKey = keyof typeof CONTENT_PAGES;
@@ -284,3 +300,4 @@ export const getHomeContent = () => getPageContent("home");
 export const getMindsetContent = () => getPageContent("mindset");
 export const getDropsContent = () => getPageContent("drops");
 export const getFooterContent = () => getPageContent("footer");
+export const getCheckoutSuccessContent = () => getPageContent("checkoutSuccess");

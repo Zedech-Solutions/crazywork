@@ -191,6 +191,9 @@ model Order {
   // fulfilment
   status              OrderStatus @default(pending)
   paymentMethod       String?
+  paymentRef          String? // Stripe payment_intent / external reference
+  isTest              Boolean     @default(false) // paid via Stripe test mode
+  archived            Boolean     @default(false) // soft-deleted / hidden from the active list
   orderNote           String? // customer free-text request
   courierName         String?
   trackingNumber      String?

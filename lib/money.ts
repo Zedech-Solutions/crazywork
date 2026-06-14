@@ -1,12 +1,16 @@
 // All money math in the app happens in integer sen (1 RM = 100 sen).
 // Prisma Decimal columns hold RM; convert at the boundary with toSen/fromSen.
 
-export function formatRM(sen: number): string {
-  const ringgit = sen / 100;
-  return `RM ${ringgit.toLocaleString("en-MY", {
+// Just the formatted amount, no currency prefix (e.g. "1,166.00").
+export function formatAmount(sen: number): string {
+  return (sen / 100).toLocaleString("en-MY", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`;
+  });
+}
+
+export function formatRM(sen: number): string {
+  return `RM ${formatAmount(sen)}`;
 }
 
 export function rm(ringgit: number): number {

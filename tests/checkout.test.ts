@@ -54,7 +54,7 @@ beforeAll(async () => {
       status: "active",
       variants: {
         create: [
-          { size: "M", colour: "Black", stock: 5 },
+          { size: "M", colour: "Black", stock: 20 },
           { size: "L", colour: "Black", stock: 0 },
         ],
       },
@@ -127,7 +127,7 @@ describe("priceCart (server-side pricing)", () => {
 
   test("quantity above remaining stock blocks checkout", async () => {
     const result = await priceCart({
-      items: [{ variantId: inStockVariantId, quantity: 6 }],
+      items: [{ variantId: inStockVariantId, quantity: 25 }],
       shippingZone: "west",
       email: EMAIL,
     });
@@ -250,7 +250,10 @@ describe("placeOrder → markOrderPaid lifecycle", () => {
     expect(statusMail?.to).toBe(EMAIL);
   });
 
-  test("illegal transitions are rejected", async () => {
+  test("admin override: any status is settable, and pending→sold deducts stock once", async () => {
+    const before = await prisma.productVariant.findUnique({
+      where: { id: inStockVariantId },
+    });
     const placed = await placeOrder({
       items: [{ variantId: inStockVariantId, quantity: 1 }],
       shippingZone: "west",
@@ -260,8 +263,24 @@ describe("placeOrder → markOrderPaid lifecycle", () => {
     const order = await prisma.order.findUnique({
       where: { orderNumber: placed.orderNumber },
     });
-    // pending → shipped skips paid
-    expect((await updateOrderStatus(order!.id, "shipped")).ok).toBe(false);
+
+    // pending → shipped is now allowed (admin override) and deducts stock once
+    expect((await updateOrderStatus(order!.id, "shipped")).ok).toBe(true);
+    const afterShip = await prisma.order.findUnique({ where: { id: order!.id } });
+    expect(afterShip?.status).toBe("shipped");
+    const stockNow = await prisma.productVariant.findUnique({
+      where: { id: inStockVariantId },
+    });
+    expect(stockNow?.stock).toBe((before?.stock ?? 0) - 1);
+
+    // a terminal order can still be moved (e.g. delivered → cancelled)
+    await updateOrderStatus(order!.id, "delivered");
+    expect((await updateOrderStatus(order!.id, "cancelled")).ok).toBe(true);
+    const stockUnchanged = await prisma.productVariant.findUnique({
+      where: { id: inStockVariantId },
+    });
+    // no double-deduction from the extra transitions
+    expect(stockUnchanged?.stock).toBe((before?.stock ?? 0) - 1);
   });
 });
 

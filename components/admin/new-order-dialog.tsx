@@ -42,6 +42,15 @@ const STATUS_OPTIONS = [
   { label: "Pending (no stock change)", value: "pending" },
 ];
 
+const PAYMENT_OPTIONS = [
+  { label: "Cash", value: "cash" },
+  { label: "Bank transfer", value: "bank_transfer" },
+  { label: "FPX / DuitNow", value: "fpx" },
+  { label: "Card (in person)", value: "card" },
+  { label: "Stripe", value: "stripe" },
+  { label: "Other / offline", value: "offline" },
+];
+
 export function NewOrderDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
@@ -50,6 +59,7 @@ export function NewOrderDialog({ onCreated }: { onCreated: () => void }) {
   ]);
   const [customer, setCustomer] = useState({ name: "", email: "", phone: "" });
   const [status, setStatus] = useState("paid");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [addCustomer, setAddCustomer] = useState(true);
@@ -119,6 +129,7 @@ export function NewOrderDialog({ onCreated }: { onCreated: () => void }) {
     setLines([{ productId: "", variantId: "", quantity: 1 }]);
     setCustomer({ name: "", email: "", phone: "" });
     setStatus("paid");
+    setPaymentMethod("cash");
     setAmount("");
     setNote("");
     setAddCustomer(true);
@@ -163,6 +174,7 @@ export function NewOrderDialog({ onCreated }: { onCreated: () => void }) {
           note,
           totalSen,
           createCustomer: addCustomer,
+          paymentMethod,
         }),
       });
       setOpen(false);
@@ -293,13 +305,22 @@ export function NewOrderDialog({ onCreated }: { onCreated: () => void }) {
             <Dropdown value={status} onValueChange={setStatus} options={STATUS_OPTIONS} />
           </div>
           <div>
-            <Label>Note (optional)</Label>
-            <Textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={1}
+            <Label>Payment method</Label>
+            <Dropdown
+              value={paymentMethod}
+              onValueChange={setPaymentMethod}
+              options={PAYMENT_OPTIONS}
             />
           </div>
+        </div>
+
+        <div className="mt-3">
+          <Label>Note (optional)</Label>
+          <Textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={1}
+          />
         </div>
 
         <div className="mt-3">

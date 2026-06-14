@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { adminFetch } from "@/components/admin/api";
 import { cn } from "@/lib/utils";
 
 const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
@@ -31,6 +33,15 @@ const SETTINGS = { href: "/admin/settings", label: "Settings" };
 
 export function AdminNav() {
   const pathname = usePathname();
+  const [lowStock, setLowStock] = useState(0);
+
+  // Restock badge — re-checked on navigation so it reflects recent stock edits.
+  useEffect(() => {
+    adminFetch<{ count: number }>("/low-stock-count")
+      .then((r) => setLowStock(r.count))
+      .catch(() => {});
+  }, [pathname]);
+
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
 
@@ -52,15 +63,30 @@ export function AdminNav() {
             </p>
           )}
           <div className="space-y-0.5">
-            {group.items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={linkClass(isActive(item.href))}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {group.items.map((item) => {
+              const badge =
+                item.href === "/admin/products" && lowStock > 0 ? lowStock : null;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    linkClass(isActive(item.href)),
+                    "flex items-center justify-between gap-2",
+                  )}
+                >
+                  <span>{item.label}</span>
+                  {badge !== null && (
+                    <span
+                      title={`${badge} item${badge === 1 ? "" : "s"} low on stock`}
+                      className="inline-flex min-w-5 items-center justify-center rounded-full bg-ember px-1.5 text-[10px] font-bold leading-5 text-peach"
+                    >
+                      {badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
           </div>
         </div>
       ))}

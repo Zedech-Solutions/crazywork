@@ -76,19 +76,28 @@ export function Navbar() {
       </nav>
 
       {mobileOpen && (
-        <ul className="border-t border-warmgrey px-4 py-3 md:hidden">
-          {LINKS.map((link) => (
-            <li key={link.href}>
-              <Link
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className="block py-2.5 subhead text-lg hover:text-ember"
-              >
-                {link.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <div className="md:hidden">
+          {/* Backdrop — dims content and closes on tap. */}
+          <button
+            aria-label="Close menu"
+            onClick={() => setMobileOpen(false)}
+            className="fixed inset-0 top-14 z-30 cursor-default bg-ink/30"
+          />
+          {/* Menu floats below the bar instead of pushing content down. */}
+          <ul className="absolute inset-x-0 top-full z-40 border-t border-warmgrey bg-peach px-4 py-3 shadow-xl">
+            {LINKS.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="block py-2.5 subhead text-lg hover:text-ember"
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </header>
   );

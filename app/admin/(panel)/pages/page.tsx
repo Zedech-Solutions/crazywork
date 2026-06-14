@@ -10,11 +10,14 @@ import { VisualPageBuilder } from "@/components/admin/visual-page-builder";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const PAGE_TABS: { key: "home" | FormPageKey; label: string }[] = [
+type PageTabKey = "home" | FormPageKey;
+
+const PAGE_TABS: { key: PageTabKey; label: string }[] = [
   { key: "home", label: "Home" },
   { key: "mindset", label: "Mindset" },
   { key: "drops", label: "Drops" },
   { key: "footer", label: "Footer" },
+  { key: "checkoutSuccess", label: "Checkout" },
 ];
 import { Dropdown } from "@/components/ui/dropdown";
 import { Input, Label, Textarea } from "@/components/ui/field";
@@ -119,7 +122,7 @@ function LinkField({
 }
 
 export default function AdminPagesPage() {
-  const [page, setPage] = useState<"home" | FormPageKey>("home");
+  const [page, setPage] = useState<PageTabKey>("home");
   const [c, setC] = useState<HomeContent | null>(null);
   const [announcementBar, setAnnouncementBar] = useState("");
   const [region, setRegion] = useState<PreviewRegion | null>(null);
@@ -265,14 +268,15 @@ export default function AdminPagesPage() {
 
   // non-home pages use the same live builder (iframe + click-to-edit)
   if (page !== "home") {
+    const pageLabel = PAGE_TABS.find((t) => t.key === page)?.label ?? page;
     return (
       <div className="flex h-full min-h-0 flex-col">
         <div className="pb-1">
           <h1 className="headline text-4xl">Pages</h1>
           <div className="mt-3">{tabs}</div>
           <p className="text-xs text-brown">
-            Editing <span className="font-bold capitalize">{page}</span> · click
-            an <span className="text-ember">✎ orange tag</span> on the preview.
+            Editing <span className="font-bold">{pageLabel}</span> · click an{" "}
+            <span className="text-ember">✎ orange tag</span> on the preview.
           </p>
         </div>
         <VisualPageBuilder pageKey={page} />

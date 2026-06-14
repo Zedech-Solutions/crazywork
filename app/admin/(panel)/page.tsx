@@ -9,7 +9,7 @@ import {
   RevenueChart,
   type TimeBucket,
 } from "@/components/admin/dashboard-charts";
-import { formatRM } from "@/lib/money";
+import { formatAmount, formatRM } from "@/lib/money";
 
 interface ActiveProduct {
   id: string;
@@ -93,10 +93,14 @@ export default function AdminDashboard() {
   if (!stats) return <p className="text-sm text-brown">Loading…</p>;
 
   const cards = [
-    { label: "Revenue (paid)", value: formatRM(stats.revenueSen), href: "/admin/orders" },
     {
-      label: "Est. profit",
-      value: formatRM(stats.profitSen),
+      label: "Revenue (paid, RM)",
+      value: formatAmount(stats.revenueSen),
+      href: "/admin/orders",
+    },
+    {
+      label: "Est. profit (RM)",
+      value: formatAmount(stats.profitSen),
       href: "/admin/orders",
       accent: stats.profitSen < 0,
     },

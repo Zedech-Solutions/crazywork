@@ -42,6 +42,7 @@ const PANEL_TITLES: Record<string, string> = {
   stories: "Stories",
   intro: "Intro",
   footer: "Footer",
+  success: "Checkout success",
 };
 
 // Live visual builder for the non-home pages (mindset / drops / footer) — same
@@ -284,6 +285,32 @@ export function VisualPageBuilder({ pageKey }: { pageKey: FormPageKey }) {
                   />
                   <p className="text-[11px] text-warmgrey">
                     Links &amp; socials are in Settings → Store.
+                  </p>
+                </>
+              )}
+
+              {pageKey === "checkoutSuccess" && (
+                <>
+                  <MediaField
+                    label="Background image (blank = soft white)"
+                    value={str("backgroundImage")}
+                    placeholderClassName="bg-white"
+                    onChange={(v) => set("backgroundImage", v)}
+                  />
+                  <Field
+                    label="Heading"
+                    value={str("heading")}
+                    onChange={(v) => set("heading", v)}
+                  />
+                  <Field
+                    label="Subheading"
+                    value={str("subheading")}
+                    onChange={(v) => set("subheading", v)}
+                    textarea
+                  />
+                  <p className="text-[11px] text-warmgrey">
+                    Both the uploaded image and the default white background render
+                    blurred behind a frosted card.
                   </p>
                 </>
               )}

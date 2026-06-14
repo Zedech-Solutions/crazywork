@@ -1,14 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Mail, Pencil, Search } from "lucide-react";
+import { Mail, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
 import { adminFetch } from "@/components/admin/api";
 import { CopyButton } from "@/components/admin/copy-button";
 import { NewOrderDialog } from "@/components/admin/new-order-dialog";
 import { OrderProgress } from "@/components/admin/order-progress";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { CheckboxField } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
-import { Input } from "@/components/ui/field";
+import { Input, Label } from "@/components/ui/field";
 import { formatRM, toSen } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +40,10 @@ interface ApiOrder {
   orderNote: string | null;
   courierName: string | null;
   trackingNumber: string | null;
+  paymentMethod: string | null;
+  paymentRef: string | null;
+  isTest: boolean;
+  archived: boolean;
   items: { productName: string; size: string; colour: string; quantity: number; unitPrice: string }[];
 }
 
@@ -59,6 +70,174 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+function TestPill() {
+  return (
+    <span
+      title="Paid through Stripe test mode"
+      className="inline-block rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700"
+    >
+      Test
+    </span>
+  );
+}
+
+const PAYMENT_METHOD_OPTIONS = [
+  { label: "Cash", value: "cash" },
+  { label: "Bank transfer", value: "bank_transfer" },
+  { label: "FPX / DuitNow", value: "fpx" },
+  { label: "Card", value: "card" },
+  { label: "Stripe", value: "stripe" },
+  { label: "Offline", value: "offline" },
+];
+
+// Human-readable payment method for the table (e.g. "bank_transfer" → "Bank transfer").
+function fmtMethod(method: string | null): string {
+  if (!method) return "—";
+  const label = method.replace(/_/g, " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function ymd(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+// Quick date-range presets for the orders filter.
+const RANGE_PRESETS: {
+  label: string;
+  range: () => { from: string; to: string };
+}[] = [
+  {
+    label: "Last 7 days",
+    range: () => {
+      const to = new Date();
+      const from = new Date();
+      from.setDate(to.getDate() - 6);
+      return { from: ymd(from), to: ymd(to) };
+    },
+  },
+  {
+    label: "This month",
+    range: () => {
+      const to = new Date();
+      return { from: ymd(new Date(to.getFullYear(), to.getMonth(), 1)), to: ymd(to) };
+    },
+  },
+  {
+    label: "This year",
+    range: () => {
+      const to = new Date();
+      return { from: ymd(new Date(to.getFullYear(), 0, 1)), to: ymd(to) };
+    },
+  },
+];
+
+// Export-with-filters dialog: pick status / date range / archived / test, then
+// download the CSV from the filtered server route.
+function ExportDialog({
+  initial,
+}: {
+  initial: { status: string; from: string; to: string };
+}) {
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [includeTest, setIncludeTest] = useState(false);
+
+  function download() {
+    const params = new URLSearchParams();
+    if (status !== "all") params.set("status", status);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    if (includeTest) params.set("includeTest", "true");
+    const qs = params.toString();
+    const a = document.createElement("a");
+    a.href = `/api/admin/orders/export.csv${qs ? `?${qs}` : ""}`;
+    a.download = "";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          // pre-fill with whatever the list is currently showing
+          setStatus(initial.status || "all");
+          setFrom(initial.from);
+          setTo(initial.to);
+          setIncludeTest(false);
+          setOpen(true);
+        }}
+      >
+        Export CSV
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle className="subhead text-xl">Export orders</DialogTitle>
+          <div className="mt-4 space-y-3">
+            <div>
+              <Label>Status</Label>
+              <Dropdown
+                value={status}
+                onValueChange={setStatus}
+                options={[
+                  { label: "All statuses", value: "all" },
+                  ...STATUSES.map((s) => ({
+                    label: s.charAt(0).toUpperCase() + s.slice(1),
+                    value: s,
+                  })),
+                ]}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>From</Label>
+                <Input
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>To</Label>
+                <Input
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(e) => setTo(e.target.value)}
+                />
+              </div>
+            </div>
+            <CheckboxField
+              label="Include test orders"
+              checked={includeTest}
+              onCheckedChange={setIncludeTest}
+            />
+          </div>
+          <div className="mt-6 flex justify-end gap-2">
+            <DialogClose asChild>
+              <Button variant="outline" size="sm">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button variant="accent" size="sm" onClick={download}>
+              Download CSV
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [filter, setFilter] = useState<string>("");
@@ -66,6 +245,7 @@ export default function AdminOrdersPage() {
     "newest",
   );
   const [open, setOpen] = useState<string | null>(null);
+  const [view, setView] = useState<"active" | "archived">("active");
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -74,13 +254,21 @@ export default function AdminOrdersPage() {
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
   const [editTotalId, setEditTotalId] = useState<string | null>(null);
   const [editTotalValue, setEditTotalValue] = useState("");
+  const [editPayId, setEditPayId] = useState<string | null>(null);
+  const [editPayValue, setEditPayValue] = useState("cash");
+  const [confirmArchive, setConfirmArchive] = useState<ApiOrder | null>(null);
+  const [archiving, setArchiving] = useState(false);
   const [tracking, setTracking] = useState<{ courier: string; number: string }>({
     courier: "",
     number: "",
   });
 
   const reload = useCallback(() => {
-    adminFetch<{ orders: ApiOrder[] }>(`/orders${filter ? `?status=${filter}` : ""}`)
+    const params = new URLSearchParams();
+    if (filter) params.set("status", filter);
+    if (view === "archived") params.set("archived", "true");
+    const qs = params.toString();
+    adminFetch<{ orders: ApiOrder[] }>(`/orders${qs ? `?${qs}` : ""}`)
       .then((r) => setOrders(r.orders))
       .catch((e) => setError(e.message));
     adminFetch<{
@@ -92,7 +280,7 @@ export default function AdminOrdersPage() {
         setItemCounts(r.itemCounts ?? {});
       })
       .catch(() => {});
-  }, [filter]);
+  }, [filter, view]);
   useEffect(reload, [reload]);
 
   async function setStatus(order: ApiOrder, status: string) {
@@ -107,6 +295,38 @@ export default function AdminOrdersPage() {
             : {}),
         }),
       });
+      reload();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function setArchived(orderId: string, archived: boolean) {
+    setArchiving(true);
+    setError(null);
+    try {
+      await adminFetch(`/orders/${orderId}/archive`, {
+        method: "PATCH",
+        body: JSON.stringify({ archived }),
+      });
+      setConfirmArchive(null);
+      setOpen(null);
+      reload();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setArchiving(false);
+    }
+  }
+
+  async function savePayment(orderId: string) {
+    setError(null);
+    try {
+      await adminFetch(`/orders/${orderId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ paymentMethod: editPayValue }),
+      });
+      setEditPayId(null);
       reload();
     } catch (e) {
       setError((e as Error).message);
@@ -215,18 +435,54 @@ export default function AdminOrdersPage() {
               { label: "Lowest total", value: "lowest" },
             ]}
           />
-          <Button asChild variant="outline" size="sm">
-            <a href="/api/admin/orders/export.csv" download>
-              Export CSV
-            </a>
-          </Button>
+          <Dropdown
+            className="w-36"
+            value={view}
+            onValueChange={(v) => {
+              setView(v as "active" | "archived");
+              setOpen(null);
+            }}
+            options={[
+              { label: "Active", value: "active" },
+              { label: "Archived", value: "archived" },
+            ]}
+          />
+          <ExportDialog
+            initial={{
+              status: filter || "all",
+              from: fromDate,
+              to: toDate,
+            }}
+          />
           <NewOrderDialog onCreated={reload} />
         </div>
       </div>
 
-      {/* Date-range filter */}
+      {/* Date-range filter — quick presets + manual range */}
       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-        <span className="eyebrow text-brown">Placed between</span>
+        <span className="eyebrow text-brown">Placed</span>
+        {RANGE_PRESETS.map((p) => {
+          const range = p.range();
+          const active = fromDate === range.from && toDate === range.to;
+          return (
+            <button
+              key={p.label}
+              onClick={() => {
+                setFromDate(range.from);
+                setToDate(range.to);
+              }}
+              className={cn(
+                "cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors",
+                active
+                  ? "border-ink bg-ink text-peach"
+                  : "border-warmgrey/60 text-brown hover:border-ink",
+              )}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+        <span className="mx-1 text-warmgrey">·</span>
         <Input
           type="date"
           className="w-40 py-1.5"
@@ -352,7 +608,7 @@ export default function AdminOrdersPage() {
               <div
                 role="button"
                 tabIndex={0}
-                className="grid w-full cursor-pointer grid-cols-2 items-center gap-3 p-4 text-left text-sm sm:grid-cols-[1.4fr_1.1fr_1.7fr_minmax(5rem,0.7fr)_minmax(6rem,0.7fr)_7rem]"
+                className="grid w-full cursor-pointer grid-cols-2 items-center gap-3 p-4 text-left text-sm sm:grid-cols-[1.4fr_1fr_1.4fr_0.9fr_minmax(4.5rem,0.6fr)_minmax(5.5rem,0.6fr)_7rem]"
                 onClick={() => {
                   setOpen(expanded ? null : order.id);
                   setTracking({
@@ -382,6 +638,18 @@ export default function AdminOrdersPage() {
                   <span className="truncate">{order.customerEmail}</span>
                   <CopyButton value={order.customerEmail} label="email" iconOnly />
                 </span>
+                <span className="flex min-w-0 items-center gap-1 text-xs text-brown">
+                  <span className="truncate">{fmtMethod(order.paymentMethod)}</span>
+                  {order.paymentRef && (
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <CopyButton
+                        value={order.paymentRef}
+                        label="payment reference"
+                        iconOnly
+                      />
+                    </span>
+                  )}
+                </span>
                 <span className="text-right tabular-nums">
                   {formatRM(toSen(order.total))}
                 </span>
@@ -389,6 +657,7 @@ export default function AdminOrdersPage() {
                   {new Date(order.placedAt).toLocaleDateString("en-MY")}
                 </span>
                 <span className="flex items-center justify-end gap-2">
+                  {order.isTest && <TestPill />}
                   {order.orderNote && (
                     <span title="Customer left a note" className="text-ember">
                       <Mail size={15} />
@@ -470,6 +739,59 @@ export default function AdminOrdersPage() {
                           </p>
                         )}
                       </div>
+                      <div className="mt-3 border-t border-warmgrey pt-2 text-xs">
+                        <p className="eyebrow text-brown">Payment</p>
+                        {editPayId === order.id ? (
+                          <div className="mt-1 flex items-center gap-2">
+                            <Dropdown
+                              className="w-40"
+                              value={editPayValue}
+                              onValueChange={setEditPayValue}
+                              options={PAYMENT_METHOD_OPTIONS}
+                            />
+                            <button
+                              onClick={() => savePayment(order.id)}
+                              className="cursor-pointer text-xs font-bold text-emerald-700"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditPayId(null)}
+                              className="cursor-pointer text-xs text-brown hover:text-ink"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="mt-1 flex items-center gap-2 text-ink">
+                            {fmtMethod(order.paymentMethod)}
+                            {order.isTest ? " · test mode" : ""}
+                            <button
+                              aria-label="Edit payment method"
+                              title="Edit payment method"
+                              onClick={() => {
+                                setEditPayId(order.id);
+                                setEditPayValue(order.paymentMethod ?? "cash");
+                              }}
+                              className="cursor-pointer text-warmgrey hover:text-ember"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          </p>
+                        )}
+                        {order.paymentRef && (
+                          <p className="mt-1 flex items-center gap-1.5 text-brown">
+                            <span className="break-all font-mono">
+                              {order.paymentRef}
+                            </span>
+                            <CopyButton
+                              value={order.paymentRef}
+                              label="payment reference"
+                              iconOnly
+                            />
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="text-sm">
                       <p className="eyebrow text-brown">Ship to</p>
@@ -477,8 +799,15 @@ export default function AdminOrdersPage() {
                         {order.customerName}
                         {order.customerPhone ? ` · ${order.customerPhone}` : ""}
                       </p>
-                      <p className="text-brown">
-                        {order.shippingAddress}, {order.shippingState}
+                      <p className="flex items-start gap-1.5 text-brown">
+                        <span>
+                          {order.shippingAddress}, {order.shippingState}
+                        </span>
+                        <CopyButton
+                          value={`${order.shippingAddress}, ${order.shippingState}`}
+                          label="address"
+                          iconOnly
+                        />
                       </p>
                       <p className="mt-1 flex items-center gap-1.5">
                         <a
@@ -528,7 +857,7 @@ export default function AdminOrdersPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 flex flex-wrap gap-2 border-t border-warmgrey pt-4">
+                  <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-warmgrey pt-4">
                     {STATUSES.filter((s) => s !== order.status).map((s) => (
                       <Button
                         key={s}
@@ -540,6 +869,22 @@ export default function AdminOrdersPage() {
                         Mark {s}
                       </Button>
                     ))}
+                    {order.archived ? (
+                      <button
+                        onClick={() => setArchived(order.id, false)}
+                        disabled={archiving}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                      >
+                        <RotateCcw size={14} /> Restore order
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmArchive(order)}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 size={14} /> Archive order
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -548,6 +893,39 @@ export default function AdminOrdersPage() {
         })}
         {orders.length === 0 && <p className="text-sm text-brown">No orders.</p>}
       </div>
+
+      {/* Archive confirmation (soft delete — reversible) */}
+      <Dialog
+        open={confirmArchive !== null}
+        onOpenChange={(o) => !o && setConfirmArchive(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogTitle className="subhead text-xl">Archive order?</DialogTitle>
+          <p className="mt-2 text-sm text-brown">
+            <span className="font-bold text-ink">
+              {confirmArchive?.orderNumber}
+            </span>{" "}
+            will be hidden from the active list. It isn&apos;t deleted — you can
+            restore it anytime from the <span className="font-bold">Archived</span>{" "}
+            view.
+          </p>
+          <div className="mt-6 flex justify-end gap-2">
+            <DialogClose asChild>
+              <Button variant="outline" size="sm">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={archiving}
+              onClick={() => confirmArchive && setArchived(confirmArchive.id, true)}
+            >
+              {archiving ? "Archiving…" : "Archive"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

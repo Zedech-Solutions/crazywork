@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
+  CheckoutSuccessPreview,
   DropsPreview,
   FooterPreview,
   MindsetPreview,
 } from "@/components/admin/page-previews";
 import {
+  DEFAULT_CHECKOUT_SUCCESS_CONTENT,
   DEFAULT_DROPS_CONTENT,
   DEFAULT_FOOTER_CONTENT,
   DEFAULT_MINDSET_CONTENT,
@@ -31,6 +33,10 @@ const REGISTRY: Record<
   mindset: { Component: MindsetPreview as never, fallback: DEFAULT_MINDSET_CONTENT },
   drops: { Component: DropsPreview as never, fallback: DEFAULT_DROPS_CONTENT },
   footer: { Component: FooterPreview as never, fallback: DEFAULT_FOOTER_CONTENT },
+  checkoutSuccess: {
+    Component: CheckoutSuccessPreview as never,
+    fallback: DEFAULT_CHECKOUT_SUCCESS_CONTENT,
+  },
 };
 
 export default function PagePreviewBridge() {

@@ -130,29 +130,41 @@ storefront.post("/checkout", async (c) => {
   });
   if (!placed.ok) return c.json(placed, 422);
 
-  const checkout = await payment.createCheckout({
-    orderNumber: placed.orderNumber,
-    totalSen: placed.totalSen,
-    customerEmail: customer.email,
-  });
+  // The order is persisted (pending); a Stripe failure here leaves it for
+  // retry/lookup rather than losing it. 503 → Stripe not configured / down.
+  let checkout: { url: string; id: string };
+  try {
+    checkout = await payment.createCheckout(
+      {
+        orderNumber: placed.orderNumber,
+        totalSen: placed.totalSen,
+        customerEmail: customer.email,
+      },
+      c.req.header("origin") ?? undefined,
+    );
+  } catch (e) {
+    console.error("[checkout] payment.createCheckout failed", e);
+    return c.json(
+      {
+        ok: false,
+        orderNumber: placed.orderNumber,
+        message: "Payment is temporarily unavailable. Please try again shortly.",
+      },
+      503,
+    );
+  }
   return c.json({ ok: true, orderNumber: placed.orderNumber, url: checkout.url });
 });
 
-// Stub success hook — the fake-success page calls this; a real Stripe
-// integration replaces it with the signed webhook below.
-storefront.post("/checkout/fake-paid", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  if (typeof body.orderNumber !== "string") {
-    return c.json({ ok: false }, 400);
-  }
-  const result = await markOrderPaid(body.orderNumber, "stub");
-  return c.json(result, result.ok ? 200 : 404);
-});
-
+// Stripe sends checkout.session.completed here; verifyWebhook checks the
+// signature and markOrderPaid is idempotent against duplicate deliveries.
 storefront.post("/webhook/payment", async (c) => {
   const event = await payment.verifyWebhook(c.req.raw);
   if (!event) return c.json({ ok: false }, 400);
-  const result = await markOrderPaid(event.orderNumber, event.paymentMethod);
+  const result = await markOrderPaid(event.orderNumber, event.paymentMethod, {
+    reference: event.reference,
+    test: event.test,
+  });
   return c.json(result, result.ok ? 200 : 404);
 });
 

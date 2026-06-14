@@ -313,6 +313,8 @@ export interface ManualOrderInput {
   /** Create / link a customer account by email so they show as a real customer
    *  (not a guest) in the CRM. */
   createCustomer?: boolean;
+  /** How the sale was paid (cash, bank transfer, etc.). Defaults to "offline". */
+  paymentMethod?: string;
 }
 
 export type ManualOrderResult =
@@ -427,7 +429,9 @@ export async function createManualOrder(
           appliedDiscountLabel: discountSen > 0 ? "Manual adjustment" : null,
           discountCodeId: null,
           orderNote: input.note?.trim() || null,
-          paymentMethod: deductsStock ? "offline" : null,
+          paymentMethod: deductsStock
+            ? input.paymentMethod?.trim() || "offline"
+            : null,
           manual: true,
           status: input.status,
           items: {
@@ -460,6 +464,7 @@ export async function createManualOrder(
 export async function markOrderPaid(
   orderNumber: string,
   paymentMethod = "stub",
+  opts: { reference?: string; test?: boolean } = {},
 ): Promise<{ ok: boolean; alreadyPaid?: boolean }> {
   const result = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
@@ -491,7 +496,12 @@ export async function markOrderPaid(
 
     const updated = await tx.order.update({
       where: { id: order.id },
-      data: { status: "paid", paymentMethod },
+      data: {
+        status: "paid",
+        paymentMethod,
+        ...(opts.reference ? { paymentRef: opts.reference } : {}),
+        ...(opts.test ? { isTest: true } : {}),
+      },
       include: { items: true },
     });
     return { ok: true as const, order: updated };
@@ -499,13 +509,35 @@ export async function markOrderPaid(
 
   if (result.ok && "order" in result && result.order) {
     const order = result.order;
+    // Stock was just decremented in the transaction above; read it back so the
+    // alert can show how many are left of each ordered variant.
+    const items = await Promise.all(
+      order.items.map(async (i) => {
+        const variant = await prisma.productVariant.findUnique({
+          where: {
+            productId_size_colour: {
+              productId: i.productId,
+              size: i.size,
+              colour: i.colour,
+            },
+          },
+          select: { stock: true },
+        });
+        return {
+          productName: i.productName,
+          size: i.size,
+          colour: i.colour,
+          quantity: i.quantity,
+          stockLeft: variant?.stock ?? null,
+        };
+      }),
+    );
     await notifier.orderPlaced({
       orderNumber: order.orderNumber,
       customerName: order.customerName,
       totalSen: toSen(order.total),
-      itemSummary: order.items
-        .map((i) => `${i.quantity}× ${i.productName} (${i.size}/${i.colour})`)
-        .join(", "),
+      items,
+      test: order.isTest,
     });
   }
   return { ok: result.ok, alreadyPaid: "alreadyPaid" in result ? result.alreadyPaid : undefined };
@@ -519,17 +551,16 @@ export async function updateOrderStatus(
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, message: "Order not found." };
 
-  if (next === "paid") {
-    const result = await markOrderPaid(order.orderNumber, "manual");
-    return result.ok
-      ? { ok: true }
-      : { ok: false, message: "Order cannot be marked paid." };
+  // A pending order first becoming "sold" (any stock-deducting status) runs the
+  // paid transition once — deducts stock + fires the paid side-effects (alert).
+  if (order.status === "pending" && STOCK_DEDUCTING.includes(next)) {
+    const paid = await markOrderPaid(order.orderNumber, "manual");
+    if (!paid.ok) return { ok: false, message: "Order cannot be marked paid." };
+    if (next === "paid") return { ok: true };
   }
 
-  if (!canTransition(order.status as OrderStatus, next)) {
-    return { ok: false, message: `Cannot move ${order.status} → ${next}.` };
-  }
-
+  // Admin override: every order is freely editable — no lifecycle lock, so even
+  // delivered/cancelled orders can be moved to any status.
   const updated = await prisma.order.update({
     where: { id: orderId },
     data: {

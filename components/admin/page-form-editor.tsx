@@ -7,7 +7,7 @@ import { adminFetch, uploadFile } from "@/components/admin/api";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
 
-export type FormPageKey = "mindset" | "drops" | "footer";
+export type FormPageKey = "mindset" | "drops" | "footer" | "checkoutSuccess";
 
 function Field({
   label,
@@ -81,6 +81,7 @@ const TITLES: Record<FormPageKey, string> = {
   mindset: "Mindset page",
   drops: "Drops page",
   footer: "Footer (every page)",
+  checkoutSuccess: "Checkout success page",
 };
 
 export function PageFormEditor({ pageKey }: { pageKey: FormPageKey }) {

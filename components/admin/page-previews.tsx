@@ -8,6 +8,7 @@ import {
   Region,
 } from "@/components/admin/preview-ui";
 import type {
+  CheckoutSuccessContent,
   DropsContent,
   FooterContent,
   MindsetContent,
@@ -122,6 +123,48 @@ export function DropsPreview({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function CheckoutSuccessPreview({
+  content,
+  editable,
+  onEdit,
+}: PreviewProps<CheckoutSuccessContent>) {
+  const hasImage = Boolean(content.backgroundImage);
+  return (
+    <div className="bg-peach font-body text-ink">
+      <PreviewChrome />
+      <Region editable={editable}>
+        <Hotspot label="Success" region="success" onEdit={onEdit} />
+        <div className="relative flex min-h-[440px] items-center justify-center overflow-hidden p-8">
+          {hasImage ? (
+            <Image
+              src={content.backgroundImage}
+              alt=""
+              fill
+              sizes="600px"
+              className="scale-110 object-cover blur-2xl brightness-95"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-white">
+              <div className="absolute left-1/2 top-1/3 h-52 w-52 -translate-x-1/2 rounded-full bg-ember/25 blur-3xl" />
+              <div className="absolute bottom-0 right-1/4 h-40 w-40 rounded-full bg-sand/60 blur-3xl" />
+            </div>
+          )}
+          <div className="relative w-full max-w-sm rounded-2xl border border-ink/10 bg-white/60 px-6 py-9 text-center shadow-xl backdrop-blur-md">
+            <p className="eyebrow text-[10px] text-ember">Order confirmed</p>
+            <p className="headline mt-1 text-4xl text-ink">
+              {content.heading || "Earned."}
+            </p>
+            <p className="mt-2 text-xs text-brown">
+              Order <span className="font-bold text-ink">CW-260614-XXXX</span> is
+              in. {content.subheading}
+            </p>
+          </div>
+        </div>
+      </Region>
     </div>
   );
 }

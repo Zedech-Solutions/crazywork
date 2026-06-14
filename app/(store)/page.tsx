@@ -52,7 +52,7 @@ export default async function HomePage() {
         <div className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6">
           <p className="eyebrow animate-rise text-ember">{content.heroEyebrow}</p>
           <h1
-            className="headline mt-3 max-w-4xl text-6xl text-peach sm:text-8xl animate-rise"
+            className="headline mt-3 max-w-4xl text-5xl text-peach animate-rise sm:text-7xl lg:text-8xl"
             style={{ animationDelay: "0.1s" }}
           >
             <RichText text={content.heroHeadline} />
@@ -189,12 +189,17 @@ export default async function HomePage() {
       {/* COMMUNITY */}
       {communityPhotos.length > 0 && (
         <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-          <div className="mb-8 flex items-end justify-between">
+          <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="eyebrow text-ember">{content.communityEyebrow}</p>
-              <h2 className="headline mt-1 text-5xl">{content.communityTitle}</h2>
+              <h2 className="headline mt-1 text-4xl sm:text-5xl">
+                {content.communityTitle}
+              </h2>
             </div>
-            <Link href="/community" className="eyebrow text-brown hover:text-ember">
+            <Link
+              href="/community"
+              className="eyebrow shrink-0 text-brown hover:text-ember"
+            >
               See all →
             </Link>
           </div>

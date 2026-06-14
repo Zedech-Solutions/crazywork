@@ -7,12 +7,14 @@ export const SETTING_DEFAULTS = {
   shippingWest: rm(8),
   shippingEast: rm(15),
   freeShippingThreshold: rm(150),
+  lowStockThreshold: 3, // variants at/below this count flag as low stock
+
   socialInstagram: "https://instagram.com/crazywork.my",
   socialTiktok: "",
   socialEmail: "hello@crazywork.my",
   ssmNumber: "",
-  ownerAlertChannel: "discord" as "discord" | "email",
-  ownerAlertEmail: "",
+  stripeMode: "test" as "test" | "live",
+  showTestOrders: false, // surface Stripe test-mode orders in admin + Discord
   popupDelaySeconds: 6,
   preCheckoutUpsellEnabled: true,
   preCheckoutUpsellTemplate:

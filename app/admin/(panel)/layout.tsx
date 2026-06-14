@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSuperadminSession } from "@/lib/admin-guard";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
 import { AdminUserMenu } from "@/components/admin/admin-user-menu";
 import { ConfirmProvider } from "@/components/admin/confirm";
 
@@ -47,11 +48,16 @@ export default async function AdminLayout({
 
       {/* CONTENT — header fixed, only the main body scrolls */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-        <header className="flex shrink-0 items-center justify-between rounded-2xl bg-peach px-5 py-3 shadow-sm ring-1 ring-warmgrey/40">
-          <Link href="/admin" className="subhead text-sm md:hidden">
-            CRAZYWORK ADMIN
-          </Link>
-          <span className="hidden eyebrow text-brown md:block">Control panel</span>
+        <header className="flex shrink-0 items-center justify-between gap-3 rounded-2xl bg-peach px-5 py-3 shadow-sm ring-1 ring-warmgrey/40">
+          <div className="flex items-center gap-2">
+            <AdminMobileNav />
+            <Link href="/admin" className="subhead text-sm md:hidden">
+              CRAZYWORK ADMIN
+            </Link>
+            <span className="hidden eyebrow text-brown md:block">
+              Control panel
+            </span>
+          </div>
           <AdminUserMenu email={session.user.email} />
         </header>
 
