@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
-import { Plus, Trash2, Upload, X } from "lucide-react";
-import { adminFetch, uploadFile } from "@/components/admin/api";
+import { Plus, Trash2, X } from "lucide-react";
+import { adminFetch } from "@/components/admin/api";
+import { MediaField } from "@/components/admin/media-field";
 import type { FormPageKey } from "@/components/admin/page-form-editor";
 import { Button } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
@@ -36,47 +36,6 @@ function Field({
   );
 }
 
-function ImageField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (url: string) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  async function pick(files: FileList | null) {
-    if (!files?.length) return;
-    setBusy(true);
-    try {
-      onChange(await uploadFile(files[0]));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div>
-      <Label>{label}</Label>
-      <div className="flex items-center gap-3">
-        <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-lg bg-ink">
-          {value && (
-            <Image src={value} alt="" fill sizes="112px" className="object-cover" />
-          )}
-        </div>
-        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-warmgrey px-3 py-2 text-xs hover:border-ink">
-          <Upload size={13} /> {busy ? "Uploading…" : "Replace"}
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => pick(e.target.files)}
-          />
-        </label>
-      </div>
-    </div>
-  );
-}
 
 const PANEL_TITLES: Record<string, string> = {
   header: "Header",
@@ -207,7 +166,7 @@ export function VisualPageBuilder({ pageKey }: { pageKey: FormPageKey }) {
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
               {pageKey === "mindset" && region === "header" && (
                 <>
-                  <ImageField
+                  <MediaField
                     label="Header background image"
                     value={str("headerImage")}
                     onChange={(v) => set("headerImage", v)}
@@ -254,7 +213,7 @@ export function VisualPageBuilder({ pageKey }: { pageKey: FormPageKey }) {
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <ImageField
+                      <MediaField
                         label="Image"
                         value={a.image}
                         onChange={(v) => updateArticle(i, { image: v })}

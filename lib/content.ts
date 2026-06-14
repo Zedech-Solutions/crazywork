@@ -10,6 +10,53 @@ export interface Cta {
   href: string;
 }
 
+// A "shop by category" tile on the home page (image + label + link).
+export interface CategoryTile {
+  id: string;
+  label: string;
+  image: string;
+  href: string;
+}
+
+// Insertion points for promo sections — one of the gaps between the fixed home
+// sections. Multiple promo sections sharing a slot render as a carousel there.
+export type HomeSlot =
+  | "afterHero"
+  | "afterFeatured"
+  | "afterTiles"
+  | "afterCommunity";
+
+export const HOME_SLOTS: { value: HomeSlot; label: string }[] = [
+  { value: "afterHero", label: "After the top banner" },
+  { value: "afterFeatured", label: "After featured products" },
+  { value: "afterTiles", label: "After the Mindset / Story tiles" },
+  { value: "afterCommunity", label: "After the community grid" },
+];
+
+// A free-form promo band the admin can insert on the home page. Multiple
+// sections sharing a slot render as an auto-advancing carousel.
+export interface HomeSection {
+  id: string;
+  position: HomeSlot;
+  eyebrow: string;
+  heading: string; // supports "\n" + *accent* words
+  body: string;
+  image: string;
+  buttonLabel: string;
+  buttonHref: string;
+}
+
+// Sections placed in a given slot (legacy rows without a position fall into the
+// original "after featured" gap).
+export function sectionsInSlot(
+  sections: HomeSection[] | undefined,
+  slot: HomeSlot,
+): HomeSection[] {
+  return (sections ?? []).filter(
+    (s) => (s.position ?? "afterFeatured") === slot,
+  );
+}
+
 export interface HomeContent {
   heroEyebrow: string;
   heroHeadline: string; // supports "\n" line breaks and *accent* words
@@ -31,9 +78,12 @@ export interface HomeContent {
     title: string; // supports "\n"
     linkLabel: string;
     href: string;
+    image: string; // optional background; sand panel when empty
   };
   communityEyebrow: string;
   communityTitle: string;
+  categories: CategoryTile[];
+  sections: HomeSection[];
 }
 
 export const DEFAULT_HOME_CONTENT: HomeContent = {
@@ -65,9 +115,12 @@ export const DEFAULT_HOME_CONTENT: HomeContent = {
     title: "Built in Malaysia.\nRep by rep.",
     linkLabel: "Where it started →",
     href: "/our-story",
+    image: "",
   },
   communityEyebrow: "Our people",
   communityTitle: "The Community",
+  categories: [],
+  sections: [],
 };
 
 // Recursively merge a stored partial over defaults. Arrays and primitives from

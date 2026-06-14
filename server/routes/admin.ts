@@ -4,11 +4,18 @@ import { getSuperadminSession } from "@/lib/admin-guard";
 import { prisma } from "@/lib/db";
 import { storage } from "@/lib/integrations/storage";
 import {
+  createManualOrder,
   ordersToCsv,
   updateOrderStatus,
   type OrderStatus,
 } from "@/lib/orders";
 import { toSen } from "@/lib/money";
+import {
+  buildTimeseries,
+  topProducts,
+  type DashRange,
+  type OrderInput,
+} from "@/lib/dashboard-stats";
 import {
   RUNTIME_SECRET_KEYS,
   bootSecretStatuses,
@@ -49,7 +56,7 @@ admin.use("*", async (c, next) => {
 const PAID_STATUSES = ["paid", "processing", "shipped", "delivered"] as const;
 
 admin.get("/stats", async (c) => {
-  const [orders, paidOrders, productCount, customers, subscribers] =
+  const [orders, paidOrders, productCount, customers, subscribers, pendingCount] =
     await Promise.all([
       prisma.order.count(),
       prisma.order.findMany({
@@ -59,6 +66,7 @@ admin.get("/stats", async (c) => {
       prisma.product.count(),
       prisma.user.count({ where: { role: "customer" } }),
       prisma.emailSubscriber.count(),
+      prisma.order.count({ where: { status: "pending" } }),
     ]);
 
   // Estimated profit = net revenue (subtotal − discount) − COGS (cost × qty).
@@ -98,6 +106,7 @@ admin.get("/stats", async (c) => {
     products: productCount,
     customers,
     subscribers,
+    pendingCount,
     lowStock: lowStock.map((v) => ({
       product: v.product.name,
       size: v.size,
@@ -115,71 +124,238 @@ admin.get("/stats", async (c) => {
   });
 });
 
+// Range-aware time series for the dashboard charts (revenue/profit/orders +
+// top products). Re-fetched on every toggle change.
+admin.get("/stats/timeseries", async (c) => {
+  const range = ((): DashRange => {
+    const r = c.req.query("range");
+    return r === "7d" || r === "30d" || r === "90d" || r === "12mo" ? r : "12mo";
+  })();
+  const now = new Date();
+  const windowStart = new Date(now);
+  if (range === "7d") windowStart.setDate(windowStart.getDate() - 8);
+  else if (range === "30d") windowStart.setDate(windowStart.getDate() - 31);
+  else if (range === "90d") windowStart.setDate(windowStart.getDate() - 92);
+  else windowStart.setMonth(windowStart.getMonth() - 12);
+
+  const paid = await prisma.order.findMany({
+    where: { status: { in: [...PAID_STATUSES] }, placedAt: { gte: windowStart } },
+    select: {
+      placedAt: true,
+      total: true,
+      subtotal: true,
+      discountAmount: true,
+      items: {
+        select: {
+          productId: true,
+          productName: true,
+          unitPrice: true,
+          costPrice: true,
+          quantity: true,
+        },
+      },
+    },
+  });
+
+  const orders: OrderInput[] = paid.map((o) => ({
+    placedAt: o.placedAt,
+    totalSen: toSen(o.total),
+    subtotalSen: toSen(o.subtotal),
+    discountSen: toSen(o.discountAmount),
+    items: o.items.map((it) => ({
+      productId: it.productId,
+      productName: it.productName,
+      unitPriceSen: toSen(it.unitPrice),
+      costPriceSen: it.costPrice == null ? null : toSen(it.costPrice),
+      quantity: it.quantity,
+    })),
+  }));
+
+  const buckets = buildTimeseries(orders, range, now);
+  const top = topProducts(orders, range, now, 5);
+
+  // Attach a thumbnail per top product (best-effort; product may be deleted).
+  const images = await prisma.productImage.findMany({
+    where: { productId: { in: top.map((t) => t.productId) } },
+    orderBy: { sortOrder: "asc" },
+    select: { productId: true, imageUrl: true },
+  });
+  const imageByProduct = new Map<string, string>();
+  for (const img of images) {
+    if (!imageByProduct.has(img.productId)) imageByProduct.set(img.productId, img.imageUrl);
+  }
+
+  return c.json({
+    range,
+    buckets,
+    topProducts: top.map((t) => ({ ...t, image: imageByProduct.get(t.productId) ?? null })),
+  });
+});
+
 // ───────── customers (CRM) ─────────
 admin.get("/customers", async (c) => {
   const pageSize = 20;
   const page = Math.max(1, Number(c.req.query("page") ?? 1));
-  const q = (c.req.query("q") ?? "").trim();
-  const where = {
-    role: "customer" as const,
-    ...(q
-      ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" as const } },
-            { email: { contains: q, mode: "insensitive" as const } },
-          ],
-        }
-      : {}),
-  };
+  const q = (c.req.query("q") ?? "").trim().toLowerCase();
 
-  const [total, users] = await Promise.all([
-    prisma.user.count({ where }),
+  // A "customer" is anyone who has an account OR has placed an order. We merge
+  // both sources by (lowercased) email so guest buyers show up too.
+  const [users, orders] = await Promise.all([
     prisma.user.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
+      where: { role: "customer" },
       select: { id: true, name: true, email: true, phone: true, createdAt: true },
     }),
+    prisma.order.findMany({
+      select: {
+        customerEmail: true,
+        customerName: true,
+        customerPhone: true,
+        total: true,
+        status: true,
+        placedAt: true,
+        manual: true,
+        userId: true,
+      },
+    }),
   ]);
 
-  const emails = users.map((u) => u.email.toLowerCase());
-  const [orderCounts, paidSums] = await Promise.all([
-    prisma.order.groupBy({
-      by: ["customerEmail"],
-      where: { customerEmail: { in: emails } },
-      _count: { _all: true },
-    }),
-    prisma.order.groupBy({
-      by: ["customerEmail"],
-      where: { customerEmail: { in: emails }, status: { in: [...PAID_STATUSES] } },
-      _sum: { total: true },
-    }),
-  ]);
-  const countBy = new Map(
-    orderCounts.map((o) => [o.customerEmail.toLowerCase(), o._count._all]),
+  interface Row {
+    id: string;
+    name: string | null;
+    email: string;
+    phone: string | null;
+    type: "account" | "guest";
+    joinedAt: Date;
+    lastOrderAt: Date | null;
+    orders: number;
+    spentSen: number;
+  }
+  const byEmail = new Map<string, Row>();
+
+  for (const u of users) {
+    byEmail.set(u.email.toLowerCase(), {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      type: "account",
+      joinedAt: u.createdAt,
+      lastOrderAt: null,
+      orders: 0,
+      spentSen: 0,
+    });
+  }
+
+  const paid = new Set<string>(PAID_STATUSES);
+  for (const o of orders) {
+    // Anonymous walk-in (manual order not saved as a customer) → not in the CRM.
+    if ((o.manual && !o.userId) || !o.customerEmail) continue;
+    const key = o.customerEmail.toLowerCase();
+    let row = byEmail.get(key);
+    if (!row) {
+      row = {
+        id: `guest:${key}`,
+        name: o.customerName,
+        email: o.customerEmail,
+        phone: o.customerPhone,
+        type: "guest",
+        joinedAt: o.placedAt,
+        lastOrderAt: null,
+        orders: 0,
+        spentSen: 0,
+      };
+      byEmail.set(key, row);
+    }
+    row.orders += 1;
+    if (paid.has(o.status)) row.spentSen += toSen(o.total);
+    if (!row.lastOrderAt || o.placedAt > row.lastOrderAt) row.lastOrderAt = o.placedAt;
+    if (o.placedAt < row.joinedAt) row.joinedAt = o.placedAt;
+    if (!row.name && o.customerName) row.name = o.customerName;
+    if (!row.phone && o.customerPhone) row.phone = o.customerPhone;
+  }
+
+  let rows = [...byEmail.values()];
+  if (q) {
+    rows = rows.filter(
+      (r) =>
+        (r.name ?? "").toLowerCase().includes(q) ||
+        r.email.toLowerCase().includes(q),
+    );
+  }
+  rows.sort(
+    (a, b) =>
+      (b.lastOrderAt ?? b.joinedAt).getTime() -
+      (a.lastOrderAt ?? a.joinedAt).getTime(),
   );
-  const spentBy = new Map(
-    paidSums.map((o) => [
-      o.customerEmail.toLowerCase(),
-      o._sum.total ? toSen(o._sum.total) : 0,
-    ]),
-  );
+
+  const total = rows.length;
+  const start = (page - 1) * pageSize;
 
   return c.json({
     page,
     pageSize,
     total,
     pages: Math.max(1, Math.ceil(total / pageSize)),
-    customers: users.map((u) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      phone: u.phone,
-      joinedAt: u.createdAt,
-      orders: countBy.get(u.email.toLowerCase()) ?? 0,
-      spentSen: spentBy.get(u.email.toLowerCase()) ?? 0,
+    customers: rows.slice(start, start + pageSize),
+  });
+});
+
+// One customer's wishlist, looked up by email → the user account behind it (any
+// role). Returns hasAccount=false when no login account exists for that email.
+admin.get("/customers/wishlist", async (c) => {
+  const email = (c.req.query("email") ?? "").trim().toLowerCase();
+  if (!email) return c.json({ hasAccount: false, items: [] });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+  if (!user) return c.json({ hasAccount: false, items: [] });
+  const items = await prisma.wishlistItem.findMany({
+    where: { userId: user.id },
+    include: {
+      product: {
+        include: { images: { orderBy: { sortOrder: "asc" }, take: 1 } },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return c.json({
+    hasAccount: true,
+    items: items.map((w) => ({
+      productId: w.productId,
+      name: w.product.name,
+      slug: w.product.slug,
+      image: w.product.images[0]?.imageUrl ?? null,
     })),
+  });
+});
+
+// ───────── wishlist (demand signal) ─────────
+admin.get("/wishlist", async (c) => {
+  const grouped = await prisma.wishlistItem.groupBy({
+    by: ["productId"],
+    _count: { _all: true },
+    orderBy: { _count: { productId: "desc" } },
+    take: 10,
+  });
+  const products = await prisma.product.findMany({
+    where: { id: { in: grouped.map((g) => g.productId) } },
+    include: { images: { orderBy: { sortOrder: "asc" }, take: 1 } },
+  });
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return c.json({
+    items: grouped
+      .map((g) => {
+        const p = byId.get(g.productId);
+        if (!p) return null;
+        return {
+          productId: g.productId,
+          name: p.name,
+          image: p.images[0]?.imageUrl ?? null,
+          count: g._count._all,
+        };
+      })
+      .filter(Boolean),
   });
 });
 
@@ -373,6 +549,113 @@ admin.get("/orders", async (c) => {
     orderBy: { placedAt: "desc" },
   });
   return c.json({ orders });
+});
+
+// Manual / offline order creation (walk-in sales). Deducts stock when the chosen
+// status implies the sale is done.
+admin.post("/orders", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const rawItems = Array.isArray(body.items) ? body.items : [];
+  const items = rawItems
+    .map((i) => i as { variantId?: unknown; quantity?: unknown })
+    .filter((i) => typeof i.variantId === "string")
+    .map((i) => ({
+      variantId: i.variantId as string,
+      quantity: Math.max(1, Math.floor(Number(i.quantity) || 1)),
+    }));
+  const customer = (body.customer ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const validStatuses: OrderStatus[] = [
+    "pending",
+    "paid",
+    "processing",
+    "shipped",
+    "delivered",
+    "cancelled",
+  ];
+  const status = validStatuses.includes(body.status as OrderStatus)
+    ? (body.status as OrderStatus)
+    : "paid";
+
+  const totalSen =
+    body.totalSen != null && Number.isFinite(Number(body.totalSen))
+      ? Math.max(0, Math.round(Number(body.totalSen)))
+      : undefined;
+
+  const result = await createManualOrder({
+    items,
+    customer: {
+      name: str(customer.name),
+      email: str(customer.email),
+      phone: str(customer.phone),
+      address: str(customer.address),
+      state: str(customer.state),
+    },
+    status,
+    note: str(body.note) || null,
+    totalSen,
+    createCustomer: body.createCustomer === true,
+  });
+  return c.json(result, result.ok ? 200 : 422);
+});
+
+// Quick restock of a single variant (used by the manual-order stock dialog).
+admin.patch("/variants/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as { stock?: unknown };
+  const stock = Math.max(0, Math.round(Number(body.stock)));
+  if (!Number.isFinite(stock)) {
+    return c.json({ ok: false, message: "Invalid stock." }, 400);
+  }
+  const v = await prisma.productVariant.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!v) return c.json({ ok: false, message: "Variant not found." }, 404);
+  await prisma.productVariant.update({ where: { id }, data: { stock } });
+  return c.json({ ok: true, stock });
+});
+
+// Edit the amount paid on an existing order (e.g. an after-the-fact discount).
+admin.patch("/orders/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as { totalSen?: unknown };
+  const totalSen = Math.max(0, Math.round(Number(body.totalSen)));
+  if (!Number.isFinite(totalSen)) {
+    return c.json({ ok: false, message: "Invalid amount." }, 400);
+  }
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { subtotal: true },
+  });
+  if (!order) return c.json({ ok: false, message: "Order not found." }, 404);
+  const subtotalSen = toSen(order.subtotal);
+  const discountSen = Math.max(0, subtotalSen - totalSen);
+  await prisma.order.update({
+    where: { id },
+    data: {
+      total: (totalSen / 100).toFixed(2),
+      discountAmount: (discountSen / 100).toFixed(2),
+      appliedDiscountLabel: discountSen > 0 ? "Manual adjustment" : null,
+    },
+  });
+  return c.json({ ok: true });
+});
+
+// Per-status counts for the orders overview bar (always all orders, ignores the
+// active list filter).
+admin.get("/orders/counts", async (c) => {
+  const orders = await prisma.order.findMany({
+    select: { status: true, items: { select: { quantity: true } } },
+  });
+  const counts: Record<string, number> = {};
+  const itemCounts: Record<string, number> = {};
+  for (const o of orders) {
+    counts[o.status] = (counts[o.status] ?? 0) + 1;
+    const qty = o.items.reduce((s, i) => s + i.quantity, 0);
+    itemCounts[o.status] = (itemCounts[o.status] ?? 0) + qty;
+  }
+  return c.json({ counts, itemCounts });
 });
 
 admin.get("/orders/export.csv", async (c) => {

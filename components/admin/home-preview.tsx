@@ -3,14 +3,16 @@
 import Image from "next/image";
 import { Pencil, ShoppingBag, User } from "lucide-react";
 import { RichText } from "@/components/site/rich-text";
-import type { HomeContent } from "@/lib/content";
+import { sectionsInSlot, type HomeContent, type HomeSlot } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
 export type PreviewRegion =
   | "announcement"
   | "hero"
   | "marquee"
+  | "categories"
   | "featured"
+  | "sections"
   | "mindsetTile"
   | "storyTile"
   | "community";
@@ -64,6 +66,75 @@ function Region({
     >
       {children}
     </div>
+  );
+}
+
+// Promo bands for one slot. Always renders a hotspot so the admin can open the
+// sections editor from any insertion point; shows a placeholder at the entry
+// slot when nothing has been added yet.
+function PromoSlotPreview({
+  content,
+  slot,
+  editable,
+  onEdit,
+  showPlaceholder,
+}: {
+  content: PreviewModel;
+  slot: HomeSlot;
+  editable?: boolean;
+  onEdit?: (r: PreviewRegion) => void;
+  showPlaceholder?: boolean;
+}) {
+  const items = sectionsInSlot(content.sections, slot);
+  if (items.length === 0 && !showPlaceholder) return null;
+  return (
+    <Region editable={editable}>
+      <Hotspot label="Promo sections" region="sections" onEdit={onEdit} />
+      {items.length > 0 ? (
+        <div className="relative flex min-h-44 items-center justify-center overflow-hidden bg-ink">
+          {items[0].image && (
+            <Image
+              src={items[0].image}
+              alt=""
+              fill
+              sizes="100vw"
+              className="object-cover opacity-70"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-transparent" />
+          <div className="relative z-10 px-6 text-center">
+            <p className="eyebrow text-ember">{items[0].eyebrow}</p>
+            <p className="headline mt-1 text-3xl text-peach">
+              <RichText text={items[0].heading} />
+            </p>
+            {items[0].body && (
+              <p className="mx-auto mt-2 max-w-md text-xs text-peach/80">
+                {items[0].body}
+              </p>
+            )}
+            {items[0].buttonLabel && (
+              <span className="mt-3 inline-block bg-ember px-4 py-1.5 subhead text-xs text-peach">
+                {items[0].buttonLabel}
+              </span>
+            )}
+          </div>
+          {items.length > 1 && (
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+              {items.map((s, i) => (
+                <span
+                  key={s.id}
+                  className={`h-1.5 rounded-full ${i === 0 ? "w-4 bg-ember" : "w-1.5 bg-peach/50"}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex min-h-28 items-center justify-center border-y border-dashed border-warmgrey bg-sand/50 text-center text-xs text-brown">
+          + Add a promo section (image / video, words, button)
+        </div>
+      )}
+    </Region>
   );
 }
 
@@ -146,6 +217,47 @@ export function HomePreview({
         </div>
       </Region>
 
+      <PromoSlotPreview
+        content={content}
+        slot="afterHero"
+        editable={editable}
+        onEdit={onEdit}
+      />
+
+      {/* SHOP BY CATEGORY */}
+      {((content.categories?.length ?? 0) > 0 || editable) && (
+        <Region editable={editable}>
+          <Hotspot label="Shop by category" region="categories" onEdit={onEdit} />
+          {content.categories && content.categories.length > 0 ? (
+            <div className="grid grid-cols-3 gap-1">
+              {content.categories.slice(0, 3).map((cat) => (
+                <div
+                  key={cat.id}
+                  className="relative flex aspect-[3/4] items-end overflow-hidden bg-ink p-3"
+                >
+                  {cat.image && (
+                    <Image
+                      src={cat.image}
+                      alt=""
+                      fill
+                      sizes="33vw"
+                      className="object-cover opacity-80"
+                    />
+                  )}
+                  <span className="relative z-10 subhead text-xs uppercase tracking-[0.1em] text-peach">
+                    {cat.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-24 items-center justify-center border-y border-dashed border-warmgrey bg-sand/50 text-center text-xs text-brown">
+              + Add shop-by-category tiles
+            </div>
+          )}
+        </Region>
+      )}
+
       {/* FEATURED */}
       <Region editable={editable}>
         <Hotspot label="Section label" region="featured" onEdit={onEdit} />
@@ -159,6 +271,15 @@ export function HomePreview({
           </div>
         </section>
       </Region>
+
+      {/* PROMO SLOT — after featured (also the entry point) */}
+      <PromoSlotPreview
+        content={content}
+        slot="afterFeatured"
+        editable={editable}
+        onEdit={onEdit}
+        showPlaceholder
+      />
 
       {/* TILES */}
       <section className="grid border-y border-warmgrey md:grid-cols-2">
@@ -187,15 +308,47 @@ export function HomePreview({
         </Region>
         <Region editable={editable}>
           <Hotspot label="Our Story tile" region="storyTile" onEdit={onEdit} />
-          <div className="flex min-h-56 flex-col justify-end bg-sand p-6">
-            <p className="eyebrow text-ember">{content.storyTile.eyebrow}</p>
-            <p className="headline mt-1 text-3xl">
-              <RichText text={content.storyTile.title} />
-            </p>
-            <p className="mt-1 eyebrow text-brown">{content.storyTile.linkLabel}</p>
+          <div
+            className={`relative flex min-h-56 flex-col justify-end overflow-hidden p-6 ${
+              content.storyTile.image ? "bg-ink" : "bg-sand"
+            }`}
+          >
+            {content.storyTile.image && (
+              <Image
+                src={content.storyTile.image}
+                alt=""
+                fill
+                sizes="50vw"
+                className="object-cover opacity-60"
+              />
+            )}
+            <div className="relative z-10">
+              <p className="eyebrow text-ember">{content.storyTile.eyebrow}</p>
+              <p
+                className={`headline mt-1 text-3xl ${
+                  content.storyTile.image ? "text-peach" : ""
+                }`}
+              >
+                <RichText text={content.storyTile.title} />
+              </p>
+              <p
+                className={`mt-1 eyebrow ${
+                  content.storyTile.image ? "text-peach/70" : "text-brown"
+                }`}
+              >
+                {content.storyTile.linkLabel}
+              </p>
+            </div>
           </div>
         </Region>
       </section>
+
+      <PromoSlotPreview
+        content={content}
+        slot="afterTiles"
+        editable={editable}
+        onEdit={onEdit}
+      />
 
       {/* COMMUNITY */}
       <Region editable={editable}>
@@ -210,6 +363,13 @@ export function HomePreview({
           </div>
         </section>
       </Region>
+
+      <PromoSlotPreview
+        content={content}
+        slot="afterCommunity"
+        editable={editable}
+        onEdit={onEdit}
+      />
 
       {/* footer skeleton */}
       <footer className="bg-ink px-6 py-10 text-peach">

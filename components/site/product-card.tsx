@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/field";
 import { useCart } from "@/components/cart/cart-context";
+import { WishlistButton } from "@/components/wishlist/wishlist-button";
 import { formatRM } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -88,6 +89,10 @@ export function ProductCard({
           {product.isNew && <Badge tone="ember">New</Badge>}
           {product.isLimited && <Badge tone="ink">Limited</Badge>}
         </div>
+        <WishlistButton
+          productId={product.productId}
+          className="absolute right-2 top-2 z-10 h-8 w-8 rounded-full bg-peach/85 text-ink backdrop-blur hover:bg-peach"
+        />
         {product.soldOut ? (
           <div className="absolute inset-x-0 bottom-0 bg-ink/85 py-2.5 text-center subhead text-sm text-warmgrey">
             Sold Out

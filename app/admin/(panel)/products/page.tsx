@@ -543,12 +543,13 @@ export default function AdminProductsPage() {
           {products.map((p) => {
             const stock = p.variants.reduce((s, v) => s + v.stock, 0);
             return (
-              <tr key={p.id} className="border-b border-sand">
+              <tr
+                key={p.id}
+                onClick={() => startEdit(p)}
+                className="group cursor-pointer border-b border-sand transition-colors hover:bg-sand/40"
+              >
                 <td className="py-3 pr-3">
-                  <button
-                    className="flex items-center gap-3 text-left subhead text-base hover:text-ember cursor-pointer"
-                    onClick={() => startEdit(p)}
-                  >
+                  <span className="flex items-center gap-3 subhead text-base group-hover:text-ember">
                     {p.images[0] && (
                       <span className="relative inline-block h-12 w-10 shrink-0 overflow-hidden bg-ink">
                         <Image
@@ -561,7 +562,7 @@ export default function AdminProductsPage() {
                       </span>
                     )}
                     {p.name}
-                  </button>
+                  </span>
                 </td>
                 <td className="py-3 pr-3">{formatRM(rm(Number(p.basePrice)))}</td>
                 <td className={`py-3 pr-3 ${stock === 0 ? "font-bold text-red-700" : ""}`}>
@@ -577,7 +578,10 @@ export default function AdminProductsPage() {
                   <button
                     aria-label={`Delete ${p.name}`}
                     className="text-warmgrey hover:text-red-700 cursor-pointer"
-                    onClick={() => remove(p.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      remove(p.id);
+                    }}
                   >
                     <Trash2 size={15} />
                   </button>

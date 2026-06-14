@@ -9,7 +9,7 @@ export function Reveal({
   className,
   delay = 0,
   index,
-  y = 28,
+  y = 64,
   as = "div",
   ...rest
 }: {
@@ -21,17 +21,17 @@ export function Reveal({
   as?: "div" | "section" | "li" | "article";
 } & Omit<HTMLMotionProps<"div">, "ref">) {
   const Comp = motion[as] as typeof motion.div;
-  const computedDelay = index != null ? Math.min(index * 0.07, 0.5) : delay;
+  const computedDelay = index != null ? Math.min(index * 0.1, 0.6) : delay;
   return (
     <Comp
       className={className}
-      initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
+      initial={{ opacity: 0, y, scale: 0.94, filter: "blur(10px)" }}
+      whileInView={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+      viewport={{ once: true, margin: "-80px" }}
       transition={{
-        duration: 0.6,
+        duration: 0.85,
         delay: computedDelay,
-        ease: [0.22, 1, 0.36, 1],
+        ease: [0.16, 1, 0.3, 1],
       }}
       {...rest}
     >

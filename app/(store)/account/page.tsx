@@ -76,9 +76,12 @@ export default function AccountPage() {
         </div>
       )}
 
-      <div className="mt-8 flex gap-3">
+      <div className="mt-8 flex flex-wrap gap-3">
         <Button asChild variant="outline">
           <Link href="/account/orders">My orders</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/account/wishlist">Wishlist</Link>
         </Button>
         <Button
           variant="ghost"

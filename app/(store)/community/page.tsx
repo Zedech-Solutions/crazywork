@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
-import { InstagramEmbed } from "@/components/site/instagram-embed";
+import { CommunityCard } from "@/components/site/community-card";
+import { Reveal } from "@/components/site/reveal";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 
@@ -33,34 +33,16 @@ export default async function CommunityPage() {
       {photos.length === 0 ? (
         <p className="mt-12 text-sm text-brown">Photos coming — the work continues.</p>
       ) : (
-        <div className="-mx-4 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:px-0">
-          {photos.map((photo) => (
-            <figure
+        <div className="mt-10 flex flex-wrap items-start justify-center gap-5 sm:justify-start">
+          {photos.map((photo, i) => (
+            <Reveal
               key={photo.id}
-              className="w-[88vw] shrink-0 snap-start sm:w-[360px]"
+              as="article"
+              index={i}
+              className="w-full max-w-[340px]"
             >
-              {photo.postUrl ? (
-                // real Instagram post frame, caption collapsed
-                <InstagramEmbed url={photo.postUrl} caption={photo.caption} />
-              ) : (
-                <>
-                  <div className="relative aspect-[4/5] overflow-hidden bg-ink">
-                    <Image
-                      src={photo.imageUrl ?? ""}
-                      alt={photo.caption ?? "CRAZYWORK community"}
-                      fill
-                      sizes="360px"
-                      className="object-cover"
-                    />
-                  </div>
-                  {photo.caption && (
-                    <figcaption className="mt-1.5 text-xs text-brown">
-                      {photo.caption}
-                    </figcaption>
-                  )}
-                </>
-              )}
-            </figure>
+              <CommunityCard item={photo} showCaption />
+            </Reveal>
           ))}
         </div>
       )}

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { SizeGuide } from "@/components/site/size-guide";
 import { useCart } from "@/components/cart/cart-context";
+import { WishlistButton } from "@/components/wishlist/wishlist-button";
 import { formatRM } from "@/lib/money";
 import type { SizeGuideTable } from "@/lib/size-guide";
 import { cn } from "@/lib/utils";
@@ -193,19 +194,26 @@ export function PdpClient({
           </div>
 
           <div ref={ctaRef} className="mt-8">
-            <Button
-              variant="accent"
-              size="lg"
-              className="w-full"
-              disabled={soldOut}
-              onClick={addToCart}
-            >
-              {allSoldOut
-                ? "Sold Out"
-                : soldOut
-                  ? `${size} / ${colour} — Sold Out`
-                  : "Add to Cart"}
-            </Button>
+            <div className="flex gap-3">
+              <Button
+                variant="accent"
+                size="lg"
+                className="flex-1"
+                disabled={soldOut}
+                onClick={addToCart}
+              >
+                {allSoldOut
+                  ? "Sold Out"
+                  : soldOut
+                    ? `${size} / ${colour} — Sold Out`
+                    : "Add to Cart"}
+              </Button>
+              <WishlistButton
+                productId={product.productId}
+                size={20}
+                className="h-12 w-12 shrink-0 rounded-md border border-ink text-ink hover:border-ember hover:text-ember"
+              />
+            </div>
             {selected && !soldOut && selected.stock <= 3 && (
               <p className="mt-2 text-center text-xs text-ember">
                 Only {selected.stock} left in {size}/{colour}

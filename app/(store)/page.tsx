@@ -1,10 +1,14 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CountdownTimer } from "@/components/site/countdown-timer";
 import { HeroParallax } from "@/components/site/hero-parallax";
 import { Marquee } from "@/components/site/marquee";
+import { CategoryTiles } from "@/components/site/category-tiles";
+import { CommunityCard } from "@/components/site/community-card";
+import { Media } from "@/components/site/media";
+import { Parallax } from "@/components/site/parallax";
 import { ProductCard } from "@/components/site/product-card";
+import { PromoSections } from "@/components/site/promo-sections";
 import { Reveal } from "@/components/site/reveal";
 import { RichText } from "@/components/site/rich-text";
 import { activeProducts, toCardProduct } from "@/lib/catalog";
@@ -23,9 +27,12 @@ export default async function HomePage() {
       orderBy: { sortOrder: "asc" },
     }),
     prisma.communityPhoto.findMany({
-      where: { published: true, imageUrl: { not: null } },
+      where: {
+        published: true,
+        OR: [{ imageUrl: { not: null } }, { postUrl: { not: null } }],
+      },
       orderBy: { sortOrder: "asc" },
-      take: 5,
+      take: 6,
     }),
   ]);
   const featured = await activeProducts(
@@ -80,6 +87,11 @@ export default async function HomePage() {
 
       <Marquee items={content.marquee} />
 
+      <PromoSections sections={content.sections} slot="afterHero" />
+
+      {/* SHOP BY CATEGORY — renders nothing if no categories configured */}
+      <CategoryTiles categories={content.categories} />
+
       {/* FEATURED DROP */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -107,6 +119,9 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* PROMO SECTIONS — admin-managed bands / carousel, per slot */}
+      <PromoSections sections={content.sections} slot="afterFeatured" />
+
       {/* SPLIT EDITORIAL */}
       <section className="border-y border-warmgrey">
         <div className="grid md:grid-cols-2">
@@ -114,12 +129,14 @@ export default async function HomePage() {
             href={content.mindsetTile.href}
             className="group relative flex min-h-72 items-end overflow-hidden bg-ink p-8"
           >
-            <Image
-              src={content.mindsetTile.image}
-              alt={content.mindsetTile.eyebrow}
-              fill
-              className="object-cover opacity-60 transition-transform duration-700 group-hover:scale-105"
-            />
+            <Parallax amount={45}>
+              <Media
+                src={content.mindsetTile.image}
+                alt={content.mindsetTile.eyebrow}
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="absolute inset-0 h-full w-full object-cover opacity-60"
+              />
+            </Parallax>
             <div className="relative z-10">
               <p className="eyebrow text-ember">{content.mindsetTile.eyebrow}</p>
               <p className="headline mt-1 text-4xl text-peach">
@@ -132,18 +149,42 @@ export default async function HomePage() {
           </Link>
           <Link
             href={content.storyTile.href}
-            className="group flex min-h-72 flex-col justify-end bg-sand p-8"
+            className={`group relative flex min-h-72 flex-col justify-end overflow-hidden p-8 ${
+              content.storyTile.image ? "bg-ink" : "bg-sand"
+            }`}
           >
-            <p className="eyebrow text-ember">{content.storyTile.eyebrow}</p>
-            <p className="headline mt-1 text-4xl">
-              <RichText text={content.storyTile.title} />
-            </p>
-            <p className="mt-2 eyebrow text-brown group-hover:text-ember">
-              {content.storyTile.linkLabel}
-            </p>
+            {content.storyTile.image && (
+              <Parallax amount={45}>
+                <Media
+                  src={content.storyTile.image}
+                  alt={content.storyTile.eyebrow}
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="absolute inset-0 h-full w-full object-cover opacity-60"
+                />
+              </Parallax>
+            )}
+            <div className="relative z-10">
+              <p className="eyebrow text-ember">{content.storyTile.eyebrow}</p>
+              <p
+                className={`headline mt-1 text-4xl ${
+                  content.storyTile.image ? "text-peach" : ""
+                }`}
+              >
+                <RichText text={content.storyTile.title} />
+              </p>
+              <p
+                className={`mt-2 eyebrow group-hover:text-ember ${
+                  content.storyTile.image ? "text-peach/70" : "text-brown"
+                }`}
+              >
+                {content.storyTile.linkLabel}
+              </p>
+            </div>
           </Link>
         </div>
       </section>
+
+      <PromoSections sections={content.sections} slot="afterTiles" />
 
       {/* COMMUNITY */}
       {communityPhotos.length > 0 && (
@@ -157,25 +198,23 @@ export default async function HomePage() {
               See all →
             </Link>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {/* Equal-height cards — same treatment as the /community page. */}
+          <div className="flex flex-wrap items-start justify-center gap-5">
             {communityPhotos.map((photo, i) => (
               <Reveal
                 key={photo.id}
+                as="article"
                 index={i}
-                className="relative aspect-square overflow-hidden bg-ink"
+                className="w-full max-w-[340px]"
               >
-                <Image
-                  src={photo.imageUrl ?? ""}
-                  alt={photo.caption ?? "CRAZYWORK community"}
-                  fill
-                  sizes="(max-width: 640px) 50vw, 20vw"
-                  className="object-cover transition-transform duration-500 hover:scale-105"
-                />
+                <CommunityCard item={photo} />
               </Reveal>
             ))}
           </div>
         </section>
       )}
+
+      <PromoSections sections={content.sections} slot="afterCommunity" />
     </>
   );
 }

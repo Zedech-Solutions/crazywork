@@ -25,10 +25,10 @@ export default async function AdminLayout({
 
   return (
     <ConfirmProvider>
-      <div className="admin-scope flex min-h-screen gap-3 bg-sand/50 p-3 lg:p-4">
+      <div className="admin-scope flex h-screen gap-3 overflow-hidden bg-sand/50 p-3 lg:p-4">
       {/* SIDEBAR — rounded dark dashboard rail */}
       <aside className="hidden w-60 shrink-0 md:block">
-        <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col rounded-2xl bg-ink p-5 text-peach">
+        <div className="flex h-full flex-col rounded-2xl bg-ink p-5 text-peach">
           <Link href="/admin" className="block">
             <span className="headline block text-xl tracking-[0.15em]">
               CRAZYWORK
@@ -45,9 +45,9 @@ export default async function AdminLayout({
         </div>
       </aside>
 
-      {/* CONTENT */}
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <header className="flex items-center justify-between rounded-2xl bg-peach px-5 py-3 shadow-sm ring-1 ring-warmgrey/40">
+      {/* CONTENT — header fixed, only the main body scrolls */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+        <header className="flex shrink-0 items-center justify-between rounded-2xl bg-peach px-5 py-3 shadow-sm ring-1 ring-warmgrey/40">
           <Link href="/admin" className="subhead text-sm md:hidden">
             CRAZYWORK ADMIN
           </Link>
@@ -55,7 +55,7 @@ export default async function AdminLayout({
           <AdminUserMenu email={session.user.email} />
         </header>
 
-        <main className="flex-1 rounded-2xl bg-peach p-6 shadow-sm ring-1 ring-warmgrey/40 lg:p-8">
+        <main className="min-h-0 flex-1 overflow-y-auto rounded-2xl bg-peach p-6 shadow-sm ring-1 ring-warmgrey/40 lg:p-8">
           {children}
         </main>
       </div>

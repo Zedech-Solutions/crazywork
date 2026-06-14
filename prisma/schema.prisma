@@ -31,8 +31,21 @@ model User {
   sessions      Session[]
   orders        Order[]
   lockedCodes   DiscountCode[] // codes locked to this user
+  wishlist      WishlistItem[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([productId])
 }
 
 model Account {
@@ -98,6 +111,7 @@ model Product {
   drop        Drop?            @relation(fields: [dropId], references: [id])
   variants    ProductVariant[]
   images      ProductImage[]
+  wishlistedBy WishlistItem[]
   // SEO
   metaTitle       String?
   metaDescription String?
@@ -181,6 +195,7 @@ model Order {
   courierName         String?
   trackingNumber      String?
   items               OrderItem[]
+  manual              Boolean     @default(false) // admin-created offline sale
   placedAt            DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 }

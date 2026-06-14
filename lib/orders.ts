@@ -286,6 +286,175 @@ export async function placeOrder(
   };
 }
 
+// ───────────────────────── manual / offline orders ─────────────────────────
+
+// Statuses that mean the sale happened → stock should come off the shelf.
+const STOCK_DEDUCTING: OrderStatus[] = [
+  "paid",
+  "processing",
+  "shipped",
+  "delivered",
+];
+
+export interface ManualOrderInput {
+  items: CheckoutItemInput[];
+  customer: {
+    name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    state?: string;
+  };
+  status: OrderStatus;
+  note?: string | null;
+  /** Amount actually charged, in sen. Defaults to the item subtotal; a lower
+   *  value is recorded as a discount (e.g. a friends-and-family promo). */
+  totalSen?: number;
+  /** Create / link a customer account by email so they show as a real customer
+   *  (not a guest) in the CRM. */
+  createCustomer?: boolean;
+}
+
+export type ManualOrderResult =
+  | { ok: false; message: string }
+  | { ok: true; orderId: string; orderNumber: string; totalSen: number };
+
+// Admin-created order (offline / walk-in sale). No shipping or discounts; stock
+// is deducted immediately when the chosen status implies the sale is done.
+export async function createManualOrder(
+  input: ManualOrderInput,
+): Promise<ManualOrderResult> {
+  if (!input.items.length) {
+    return { ok: false, message: "Add at least one item." };
+  }
+  if (!input.customer.name.trim()) {
+    return { ok: false, message: "Customer name is required." };
+  }
+
+  const variants = await prisma.productVariant.findMany({
+    where: { id: { in: input.items.map((i) => i.variantId) } },
+    include: { product: true },
+  });
+  const byId = new Map(variants.map((v) => [v.id, v]));
+
+  const lines: PricedLine[] = [];
+  for (const item of input.items) {
+    const v = byId.get(item.variantId);
+    if (!v) return { ok: false, message: "An item is no longer available." };
+    if (item.quantity < 1) {
+      return { ok: false, message: "Quantities must be at least 1." };
+    }
+    lines.push({
+      variantId: v.id,
+      productId: v.productId,
+      productName: v.product.name,
+      size: v.size,
+      colour: v.colour,
+      unitPrice: toSen(v.product.basePrice),
+      costPrice: v.costPrice != null ? toSen(v.costPrice) : null,
+      quantity: item.quantity,
+    });
+  }
+
+  const deductsStock = STOCK_DEDUCTING.includes(input.status);
+  const subtotalSen = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+  const totalSen =
+    input.totalSen != null && input.totalSen >= 0
+      ? Math.round(input.totalSen)
+      : subtotalSen;
+  const discountSen = Math.max(0, subtotalSen - totalSen);
+  const email = (input.customer.email ?? "").trim().toLowerCase();
+
+  if (input.createCustomer && !email) {
+    return { ok: false, message: "Add an email to create a customer." };
+  }
+
+  try {
+    const order = await prisma.$transaction(async (tx) => {
+      // Optionally create / link a customer account by email.
+      let userId: string | null = null;
+      if (input.createCustomer && email) {
+        const existing = await tx.user.findUnique({
+          where: { email },
+          select: { id: true },
+        });
+        userId = existing
+          ? existing.id
+          : (
+              await tx.user.create({
+                data: {
+                  email,
+                  name: input.customer.name.trim(),
+                  phone: input.customer.phone?.trim() || null,
+                  role: "customer",
+                },
+              })
+            ).id;
+      }
+
+      if (deductsStock) {
+        for (const item of input.items) {
+          const v = await tx.productVariant.findUnique({
+            where: { id: item.variantId },
+          });
+          if (!v) throw new Error("An item is no longer available.");
+          if (v.stock < item.quantity) {
+            const line = byId.get(item.variantId)!;
+            throw new Error(
+              `Not enough stock for ${line.product.name} (${line.size}/${line.colour}) — ${v.stock} left.`,
+            );
+          }
+          await tx.productVariant.update({
+            where: { id: v.id },
+            data: { stock: v.stock - item.quantity },
+          });
+        }
+      }
+      return tx.order.create({
+        data: {
+          orderNumber: generateOrderNumber(),
+          userId,
+          customerName: input.customer.name.trim(),
+          customerEmail: email,
+          customerPhone: input.customer.phone?.trim() || null,
+          shippingAddress: input.customer.address?.trim() || "Walk-in / offline",
+          shippingState: input.customer.state?.trim() || "—",
+          shippingZone: "west",
+          shippingFee: "0.00",
+          subtotal: toRM(subtotalSen),
+          discountAmount: toRM(discountSen),
+          total: toRM(totalSen),
+          appliedDiscountLabel: discountSen > 0 ? "Manual adjustment" : null,
+          discountCodeId: null,
+          orderNote: input.note?.trim() || null,
+          paymentMethod: deductsStock ? "offline" : null,
+          manual: true,
+          status: input.status,
+          items: {
+            create: lines.map((line) => ({
+              productId: line.productId,
+              productName: line.productName,
+              size: line.size,
+              colour: line.colour,
+              unitPrice: toRM(line.unitPrice),
+              costPrice: line.costPrice != null ? toRM(line.costPrice) : null,
+              quantity: line.quantity,
+            })),
+          },
+        },
+      });
+    });
+    return {
+      ok: true,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      totalSen,
+    };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
 // ───────────────────────── payment / fulfilment ─────────────────────────
 
 export async function markOrderPaid(

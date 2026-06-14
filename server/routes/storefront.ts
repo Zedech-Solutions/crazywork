@@ -13,6 +13,7 @@ import {
   type ShippingZone,
 } from "@/lib/orders";
 import { getSettings } from "@/lib/settings";
+import { toSen } from "@/lib/money";
 import { renderUpsellMessage } from "@/lib/upsell";
 
 export const storefront = new Hono();
@@ -231,4 +232,75 @@ storefront.get("/me/orders", async (c) => {
     orderBy: { placedAt: "desc" },
   });
   return c.json({ ok: true, orders });
+});
+
+// ───────────────────────── wishlist (account holders) ─────────────────────────
+
+// Just the product ids — used to light up the hearts across the site.
+storefront.get("/wishlist/ids", async (c) => {
+  const session = await sessionFor(c.req.raw.headers);
+  if (!session) return c.json({ ok: true, ids: [] as string[] });
+  const items = await prisma.wishlistItem.findMany({
+    where: { userId: session.user.id },
+    select: { productId: true },
+  });
+  return c.json({ ok: true, ids: items.map((i) => i.productId) });
+});
+
+// Full wishlist for the profile page.
+storefront.get("/wishlist", async (c) => {
+  const session = await sessionFor(c.req.raw.headers);
+  if (!session) return c.json({ ok: false }, 401);
+  const items = await prisma.wishlistItem.findMany({
+    where: { userId: session.user.id },
+    include: {
+      product: {
+        include: {
+          variants: { select: { stock: true } },
+          images: { orderBy: { sortOrder: "asc" }, take: 1 },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return c.json({
+    ok: true,
+    items: items.map((w) => ({
+      productId: w.productId,
+      slug: w.product.slug,
+      name: w.product.name,
+      basePriceSen: toSen(w.product.basePrice),
+      image: w.product.images[0]?.imageUrl ?? null,
+      soldOut:
+        w.product.variants.length > 0 &&
+        w.product.variants.every((v) => v.stock <= 0),
+    })),
+  });
+});
+
+storefront.post("/wishlist/toggle", async (c) => {
+  const session = await sessionFor(c.req.raw.headers);
+  if (!session) {
+    return c.json({ ok: false, message: "Sign in to save items." }, 401);
+  }
+  const body = (await c.req.json().catch(() => ({}))) as { productId?: unknown };
+  const productId = typeof body.productId === "string" ? body.productId : "";
+  if (!productId) return c.json({ ok: false, message: "Missing product." }, 400);
+
+  const existing = await prisma.wishlistItem.findUnique({
+    where: { userId_productId: { userId: session.user.id, productId } },
+  });
+  if (existing) {
+    await prisma.wishlistItem.delete({ where: { id: existing.id } });
+    return c.json({ ok: true, wishlisted: false });
+  }
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { id: true },
+  });
+  if (!product) return c.json({ ok: false, message: "Product not found." }, 404);
+  await prisma.wishlistItem.create({
+    data: { userId: session.user.id, productId },
+  });
+  return c.json({ ok: true, wishlisted: true });
 });

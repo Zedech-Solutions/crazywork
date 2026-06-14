@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { Badge } from "@/components/ui/field";
+import { Media } from "@/components/site/media";
+import { Parallax } from "@/components/site/parallax";
+import { Reveal } from "@/components/site/reveal";
 import { RichText } from "@/components/site/rich-text";
 import { getMindsetContent } from "@/lib/content";
 
@@ -27,16 +30,17 @@ export default async function MindsetPage() {
       {/* HEADER — editable via admin Pages */}
       <header className="relative overflow-hidden bg-ink py-24">
         {content.headerImage && (
-          <Image
-            src={content.headerImage}
-            alt=""
-            fill
-            priority
-            sizes="100vw"
-            className="object-cover opacity-30"
-          />
+          <Parallax>
+            <Media
+              src={content.headerImage}
+              alt=""
+              priority
+              sizes="100vw"
+              className="absolute inset-0 h-full w-full object-cover opacity-30"
+            />
+          </Parallax>
         )}
-        <div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6">
+        <Reveal className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6">
           <p className="eyebrow text-ember">{content.headerEyebrow}</p>
           <h1 className="headline mt-3 text-7xl text-peach sm:text-8xl">
             <RichText text={content.headerTitle} />
@@ -44,7 +48,7 @@ export default async function MindsetPage() {
           <p className="mt-4 max-w-xl text-base leading-relaxed text-peach/70">
             {content.headerSub}
           </p>
-        </div>
+        </Reveal>
       </header>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
@@ -66,7 +70,7 @@ export default async function MindsetPage() {
 
         {/* FEATURED */}
         {featured && (
-          <div className="grid border border-warmgrey md:grid-cols-2">
+          <Reveal as="div" className="grid border border-warmgrey md:grid-cols-2">
             <div className="relative aspect-video bg-ink">
               <Image
                 src={featured.image}
@@ -87,14 +91,16 @@ export default async function MindsetPage() {
                 {featured.excerpt}
               </p>
             </div>
-          </div>
+          </Reveal>
         )}
 
         {/* GRID */}
         <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {rest.map((article, i) => (
-            <div
+            <Reveal
               key={i}
+              as="article"
+              index={i}
               className="group border border-warmgrey bg-sand/40 transition-colors hover:border-ember"
             >
               <div className="relative aspect-video overflow-hidden bg-ink">
@@ -118,7 +124,7 @@ export default async function MindsetPage() {
                   {article.excerpt}
                 </p>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
       </div>

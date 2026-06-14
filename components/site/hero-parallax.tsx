@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
+import { Media } from "@/components/site/media";
 
-// Scroll-driven parallax for the full-bleed hero image. The image container is
-// oversized (±15% beyond the section) so the vertical drift never reveals an
-// edge. Lives in its own client component so the home page stays server-rendered.
+// Scroll-driven parallax for the full-bleed hero media (image or video). The
+// container is oversized (±15% beyond the section) so the vertical drift never
+// reveals an edge. Client component so the home page stays server-rendered.
 export function HeroParallax({ src, alt }: { src: string; alt: string }) {
   const { scrollY } = useScroll();
   const y = useTransform(scrollY, [0, 700], [0, 110]);
@@ -16,13 +16,12 @@ export function HeroParallax({ src, alt }: { src: string; alt: string }) {
       style={{ y, scale }}
       className="absolute -inset-y-[15%] inset-x-0 will-change-transform"
     >
-      <Image
+      <Media
         src={src}
         alt={alt}
-        fill
         priority
         sizes="100vw"
-        className="object-cover opacity-90"
+        className="absolute inset-0 h-full w-full object-cover opacity-90"
       />
     </motion.div>
   );

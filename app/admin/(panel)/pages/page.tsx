@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
-import { Plus, Trash2, Upload, X } from "lucide-react";
-import { adminFetch, uploadFile } from "@/components/admin/api";
+import { GripVertical, Plus, Trash2, X } from "lucide-react";
+import { adminFetch } from "@/components/admin/api";
+import { MediaField } from "@/components/admin/media-field";
 import type { PreviewRegion } from "@/components/admin/home-preview";
 import type { FormPageKey } from "@/components/admin/page-form-editor";
 import { VisualPageBuilder } from "@/components/admin/visual-page-builder";
@@ -18,7 +18,15 @@ const PAGE_TABS: { key: "home" | FormPageKey; label: string }[] = [
 ];
 import { Dropdown } from "@/components/ui/dropdown";
 import { Input, Label, Textarea } from "@/components/ui/field";
-import { DEFAULT_HOME_CONTENT, type HomeContent } from "@/lib/content";
+import {
+  DEFAULT_HOME_CONTENT,
+  HOME_SLOTS,
+  sectionsInSlot,
+  type CategoryTile,
+  type HomeContent,
+  type HomeSection,
+  type HomeSlot,
+} from "@/lib/content";
 
 const PAGE_OPTIONS = [
   { label: "Shop page", value: "/shop" },
@@ -36,7 +44,9 @@ const REGION_TITLES: Record<PreviewRegion, string> = {
   announcement: "Announcement bar",
   hero: "Top banner",
   marquee: "Scrolling banner",
+  categories: "Shop by category",
   featured: "Featured section label",
+  sections: "Promo sections",
   mindsetTile: "Mindset tile",
   storyTile: "Our Story tile",
   community: "Community section label",
@@ -108,48 +118,6 @@ function LinkField({
   );
 }
 
-function ImageField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (url: string) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  async function pick(files: FileList | null) {
-    if (!files?.length) return;
-    setBusy(true);
-    try {
-      onChange(await uploadFile(files[0]));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div>
-      <Label>{label}</Label>
-      <div className="flex items-center gap-3">
-        <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-lg bg-ink">
-          {value && (
-            <Image src={value} alt="" fill sizes="112px" className="object-cover" />
-          )}
-        </div>
-        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-warmgrey px-3 py-2 text-xs hover:border-ink">
-          <Upload size={13} /> {busy ? "Uploading…" : "Replace"}
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => pick(e.target.files)}
-          />
-        </label>
-      </div>
-    </div>
-  );
-}
-
 export default function AdminPagesPage() {
   const [page, setPage] = useState<"home" | FormPageKey>("home");
   const [c, setC] = useState<HomeContent | null>(null);
@@ -159,6 +127,8 @@ export default function AdminPagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<HomeSlot | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -194,6 +164,56 @@ export default function AdminPagesPage() {
   const set = useCallback(
     <K extends keyof HomeContent>(key: K, value: HomeContent[K]) =>
       setC((prev) => (prev ? { ...prev, [key]: value } : prev)),
+    [],
+  );
+
+  // Promo sections are addressed by id (they're grouped by slot in the UI, so
+  // array index isn't stable). Drag-and-drop just reassigns `position`.
+  const updateSection = useCallback(
+    (id: string, patch: Partial<HomeSection>) =>
+      setC((prev) =>
+        prev
+          ? {
+              ...prev,
+              sections: prev.sections.map((s) =>
+                s.id === id ? { ...s, ...patch } : s,
+              ),
+            }
+          : prev,
+      ),
+    [],
+  );
+  const removeSection = useCallback(
+    (id: string) =>
+      setC((prev) =>
+        prev
+          ? { ...prev, sections: prev.sections.filter((s) => s.id !== id) }
+          : prev,
+      ),
+    [],
+  );
+  const addSection = useCallback(
+    (slot: HomeSlot) =>
+      setC((prev) =>
+        prev
+          ? {
+              ...prev,
+              sections: [
+                ...prev.sections,
+                {
+                  id: crypto.randomUUID(),
+                  position: slot,
+                  eyebrow: "",
+                  heading: "New section",
+                  body: "",
+                  image: "",
+                  buttonLabel: "Shop",
+                  buttonHref: "/shop",
+                } satisfies HomeSection,
+              ],
+            }
+          : prev,
+      ),
     [],
   );
 
@@ -246,7 +266,7 @@ export default function AdminPagesPage() {
   // non-home pages use the same live builder (iframe + click-to-edit)
   if (page !== "home") {
     return (
-      <div className="flex h-[calc(100vh-9rem)] flex-col">
+      <div className="flex h-full min-h-0 flex-col">
         <div className="pb-1">
           <h1 className="headline text-4xl">Pages</h1>
           <div className="mt-3">{tabs}</div>
@@ -271,7 +291,7 @@ export default function AdminPagesPage() {
     );
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-start justify-between pb-3">
         <div>
           <h1 className="headline text-4xl">Pages</h1>
@@ -329,7 +349,7 @@ export default function AdminPagesPage() {
 
               {region === "hero" && (
                 <>
-                  <ImageField
+                  <MediaField
                     label="Background image"
                     value={c.heroImage}
                     onChange={(v) => set("heroImage", v)}
@@ -416,6 +436,89 @@ export default function AdminPagesPage() {
                 </div>
               )}
 
+              {region === "categories" && (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-warmgrey">
+                    Image tiles shown above the featured products. Leave empty to
+                    hide the whole section.
+                  </p>
+                  {(c.categories ?? []).map((cat) => (
+                    <div
+                      key={cat.id}
+                      className="space-y-2 rounded-lg border border-warmgrey/60 bg-sand/30 p-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="eyebrow text-brown">Tile</span>
+                        <button
+                          aria-label="Remove tile"
+                          className="p-1 text-warmgrey hover:text-red-700 cursor-pointer"
+                          onClick={() =>
+                            set(
+                              "categories",
+                              c.categories.filter((x) => x.id !== cat.id),
+                            )
+                          }
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <MediaField
+                        label="Tile image"
+                        value={cat.image}
+                        onChange={(v) =>
+                          set(
+                            "categories",
+                            c.categories.map((x) =>
+                              x.id === cat.id ? { ...x, image: v } : x,
+                            ),
+                          )
+                        }
+                      />
+                      <Field
+                        label="Label"
+                        value={cat.label}
+                        onChange={(v) =>
+                          set(
+                            "categories",
+                            c.categories.map((x) =>
+                              x.id === cat.id ? { ...x, label: v } : x,
+                            ),
+                          )
+                        }
+                      />
+                      <LinkField
+                        label="Tile goes to"
+                        value={cat.href}
+                        onChange={(v) =>
+                          set(
+                            "categories",
+                            c.categories.map((x) =>
+                              x.id === cat.id ? { ...x, href: v } : x,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                  ))}
+                  <button
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-ember/60 px-3 py-2 text-xs font-medium text-ember hover:bg-ember/10 cursor-pointer"
+                    onClick={() =>
+                      set("categories", [
+                        ...(c.categories ?? []),
+                        {
+                          id: crypto.randomUUID(),
+                          label: "New category",
+                          image: "",
+                          href: "/shop",
+                        } satisfies CategoryTile,
+                      ])
+                    }
+                  >
+                    <Plus size={13} /> Add tile
+                  </button>
+                </div>
+              )}
+
               {region === "featured" && (
                 <Field
                   label="Small label above the product grid"
@@ -424,9 +527,148 @@ export default function AdminPagesPage() {
                 />
               )}
 
+              {region === "sections" && (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-warmgrey">
+                    Each box below is a spot on the home page. Drag a promo band by
+                    its <GripVertical size={11} className="inline -mt-0.5" /> handle
+                    into the spot you want, or hit + to add one there. Bands sharing
+                    a spot auto-rotate as a slideshow.
+                  </p>
+                  {HOME_SLOTS.map((slot) => {
+                    const items = sectionsInSlot(c.sections, slot.value);
+                    const over = dragOverSlot === slot.value;
+                    return (
+                      <div
+                        key={slot.value}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (draggingId) setDragOverSlot(slot.value);
+                        }}
+                        onDragLeave={(e) => {
+                          if (
+                            !e.currentTarget.contains(e.relatedTarget as Node)
+                          )
+                            setDragOverSlot(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggingId)
+                            updateSection(draggingId, { position: slot.value });
+                          setDraggingId(null);
+                          setDragOverSlot(null);
+                        }}
+                        className={cn(
+                          "rounded-xl border-2 border-dashed p-2 transition-colors",
+                          over
+                            ? "border-ember bg-ember/10"
+                            : "border-warmgrey/50 bg-sand/20",
+                        )}
+                      >
+                        <div className="flex items-center justify-between px-1 pb-1.5">
+                          <span className="eyebrow text-[10px] text-brown">
+                            {slot.label}
+                          </span>
+                          <button
+                            aria-label={`Add band in ${slot.label}`}
+                            className="text-ember hover:text-ink cursor-pointer"
+                            onClick={() => addSection(slot.value)}
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                        {items.length === 0 ? (
+                          <p className="px-1 py-2 text-center text-[11px] text-warmgrey">
+                            Empty — drop a band here
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {items.map((s) => (
+                              <div
+                                key={s.id}
+                                className={cn(
+                                  "space-y-2 rounded-lg border border-warmgrey/60 bg-white/70 p-3 transition-opacity",
+                                  draggingId === s.id && "opacity-40",
+                                )}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span
+                                    draggable
+                                    onDragStart={(e) => {
+                                      setDraggingId(s.id);
+                                      e.dataTransfer.effectAllowed = "move";
+                                    }}
+                                    onDragEnd={() => {
+                                      setDraggingId(null);
+                                      setDragOverSlot(null);
+                                    }}
+                                    className="flex cursor-grab items-center gap-1 text-brown active:cursor-grabbing"
+                                  >
+                                    <GripVertical size={15} />
+                                    <span className="eyebrow text-[10px]">Drag</span>
+                                  </span>
+                                  <button
+                                    aria-label="Remove band"
+                                    className="p-1 text-warmgrey hover:text-red-700 cursor-pointer"
+                                    onClick={() => removeSection(s.id)}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                                <MediaField
+                                  label="Background media"
+                                  value={s.image}
+                                  onChange={(v) => updateSection(s.id, { image: v })}
+                                />
+                                <Field
+                                  label="Small label"
+                                  value={s.eyebrow}
+                                  onChange={(v) =>
+                                    updateSection(s.id, { eyebrow: v })
+                                  }
+                                />
+                                <Field
+                                  label="Heading"
+                                  value={s.heading}
+                                  textarea
+                                  hint="Enter = new line. *word* = orange."
+                                  onChange={(v) =>
+                                    updateSection(s.id, { heading: v })
+                                  }
+                                />
+                                <Field
+                                  label="Text"
+                                  value={s.body}
+                                  textarea
+                                  onChange={(v) => updateSection(s.id, { body: v })}
+                                />
+                                <Field
+                                  label="Button text (leave blank to hide)"
+                                  value={s.buttonLabel}
+                                  onChange={(v) =>
+                                    updateSection(s.id, { buttonLabel: v })
+                                  }
+                                />
+                                <LinkField
+                                  label="Button goes to"
+                                  value={s.buttonHref}
+                                  onChange={(v) =>
+                                    updateSection(s.id, { buttonHref: v })
+                                  }
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {region === "mindsetTile" && (
                 <>
-                  <ImageField
+                  <MediaField
                     label="Tile image"
                     value={c.mindsetTile.image}
                     onChange={(v) =>
@@ -467,6 +709,14 @@ export default function AdminPagesPage() {
 
               {region === "storyTile" && (
                 <>
+                  <MediaField
+                    label="Background image / video (optional)"
+                    value={c.storyTile.image}
+                    placeholderClassName="bg-sand"
+                    onChange={(v) =>
+                      set("storyTile", { ...c.storyTile, image: v })
+                    }
+                  />
                   <Field
                     label="Small label"
                     value={c.storyTile.eyebrow}
