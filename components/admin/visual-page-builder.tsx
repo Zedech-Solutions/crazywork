@@ -8,7 +8,8 @@ import type { FormPageKey } from "@/components/admin/page-form-editor";
 import { Button } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Input, Label, Textarea } from "@/components/ui/field";
-import type { MindsetArticle } from "@/lib/content";
+import { Dropdown } from "@/components/ui/dropdown";
+import { MINDSET_BG_OPTIONS, slugify, type MindsetArticle } from "@/lib/content";
 
 function Field({
   label,
@@ -115,16 +116,41 @@ export function VisualPageBuilder({ pageKey }: { pageKey: FormPageKey }) {
     setArticles([
       ...articles,
       {
+        slug: "",
         tag: "Mindset",
         title: "New story",
         excerpt: "",
         readTime: "4 min read",
         image: "",
         featured: false,
+        bgColor: "ink",
+        sections: [],
       },
     ]);
   const removeArticle = (i: number) =>
     setArticles(articles.filter((_, j) => j !== i));
+
+  // Article body blocks (heading + paragraphs) — power the detail page.
+  const setSections = (i: number, next: MindsetArticle["sections"]) =>
+    updateArticle(i, { sections: next });
+  const addSection = (i: number) =>
+    setSections(i, [...(articles[i].sections ?? []), { heading: "", body: "" }]);
+  const updateSection = (
+    i: number,
+    s: number,
+    patch: Partial<MindsetArticle["sections"][number]>,
+  ) =>
+    setSections(
+      i,
+      (articles[i].sections ?? []).map((sec, k) =>
+        k === s ? { ...sec, ...patch } : sec,
+      ),
+    );
+  const removeSection = (i: number, s: number) =>
+    setSections(
+      i,
+      (articles[i].sections ?? []).filter((_, k) => k !== s),
+    );
 
   if (error) return <p className="text-sm text-red-700">{error}</p>;
   if (!content) return <p className="text-sm text-brown">Loading…</p>;
@@ -238,11 +264,73 @@ export function VisualPageBuilder({ pageKey }: { pageKey: FormPageKey }) {
                         textarea
                       />
                       <Field
+                        label="Page link (slug)"
+                        value={a.slug ?? ""}
+                        onChange={(v) => updateArticle(i, { slug: slugify(v) })}
+                        hint={`Opens at /mindset/${slugify(a.slug?.trim() || a.title) || "…"}. Blank = from title.`}
+                      />
+                      <Field
                         label="Excerpt"
                         value={a.excerpt}
                         onChange={(v) => updateArticle(i, { excerpt: v })}
                         textarea
                       />
+                      <div>
+                        <Label>Page background</Label>
+                        <Dropdown
+                          value={a.bgColor ?? "ink"}
+                          onValueChange={(v) =>
+                            updateArticle(i, {
+                              bgColor: v as MindsetArticle["bgColor"],
+                            })
+                          }
+                          options={MINDSET_BG_OPTIONS}
+                        />
+                      </div>
+
+                      {/* Article body — shown on the detail page */}
+                      <div className="space-y-2 border-t border-warmgrey/60 pt-3">
+                        <p className="eyebrow text-brown">Article body</p>
+                        {(a.sections ?? []).map((sec, s) => (
+                          <div
+                            key={s}
+                            className="space-y-2 rounded-lg border border-warmgrey/60 bg-white/60 p-2.5"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="eyebrow text-[10px] text-brown">
+                                Section {s + 1}
+                              </span>
+                              <button
+                                aria-label="Remove section"
+                                className="p-0.5 text-warmgrey hover:text-red-700 cursor-pointer"
+                                onClick={() => removeSection(i, s)}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                            <Field
+                              label="Heading"
+                              value={sec.heading}
+                              onChange={(v) =>
+                                updateSection(i, s, { heading: v })
+                              }
+                            />
+                            <Field
+                              label="Text"
+                              value={sec.body}
+                              onChange={(v) => updateSection(i, s, { body: v })}
+                              textarea
+                              hint="Blank line = new paragraph."
+                            />
+                          </div>
+                        ))}
+                        <button
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-ember/60 px-3 py-1.5 text-xs font-medium text-ember hover:bg-ember/10 cursor-pointer"
+                          onClick={() => addSection(i)}
+                        >
+                          <Plus size={12} /> Add section
+                        </button>
+                      </div>
                     </div>
                   ))}
                   <button

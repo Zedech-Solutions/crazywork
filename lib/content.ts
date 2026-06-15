@@ -148,13 +148,34 @@ export function deepMerge<T>(base: T, override: unknown): T {
 
 // ───────────────────────── other editable pages ─────────────────────────
 
+// One titled block of an article's body (renders as a heading + paragraphs on
+// the detail page). Paragraphs are split on blank lines in the body string.
+export interface MindsetSection {
+  heading: string;
+  body: string;
+}
+
+// Background theme for an article's detail page. Each maps to a brand colour
+// with a matching (dark/light) text treatment — see the detail page's theme map.
+export type MindsetBg = "ink" | "brown" | "peach" | "sand";
+
+export const MINDSET_BG_OPTIONS: { label: string; value: MindsetBg }[] = [
+  { label: "Dark (ink)", value: "ink" },
+  { label: "Brown", value: "brown" },
+  { label: "Light (peach)", value: "peach" },
+  { label: "Sand", value: "sand" },
+];
+
 export interface MindsetArticle {
+  slug: string; // URL for the detail page; blank → derived from the title
   tag: string;
   title: string;
   excerpt: string;
   readTime: string;
   image: string;
   featured: boolean;
+  bgColor: MindsetBg; // detail-page background theme
+  sections: MindsetSection[];
 }
 
 export interface MindsetContent {
@@ -165,6 +186,20 @@ export interface MindsetContent {
   articles: MindsetArticle[];
 }
 
+// URL-safe slug from arbitrary text.
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+// The slug an article is reachable at — its explicit slug, or one derived from
+// the title for legacy/blank entries.
+export function mindsetArticleSlug(a: MindsetArticle): string {
+  return a.slug?.trim() ? slugify(a.slug) : slugify(a.title);
+}
+
 export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
   headerEyebrow: "Content & Community",
   headerTitle: "The Mindset",
@@ -173,6 +208,7 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
   headerImage: "/images/mindset.svg",
   articles: [
     {
+      slug: "5-principles-elite-athletes",
       tag: "Training",
       title: "5 Principles That Separate Elite Athletes From Everyone Else",
       excerpt:
@@ -180,8 +216,20 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       readTime: "4 min read",
       image: "/images/story.svg",
       featured: true,
+      bgColor: "ink",
+      sections: [
+        {
+          heading: "Talent is overrated",
+          body: "Everyone wants to believe the people at the top were born different. It's comforting — it lets you off the hook. The truth is harder: elite athletes are built, not born, and the blueprint is available to anyone willing to follow it.",
+        },
+        {
+          heading: "The principles",
+          body: "Show up when you don't feel like it. Train the boring fundamentals longer than anyone else. Recover like it's part of the work, because it is. Measure honestly. And never confuse motion with progress.",
+        },
+      ],
     },
     {
+      slug: "identity-over-motivation",
       tag: "Mindset",
       title: "Why Your Identity Matters More Than Your Motivation",
       excerpt:
@@ -189,8 +237,28 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       readTime: "6 min read",
       image: "/images/hero.svg",
       featured: false,
+      bgColor: "ink",
+      sections: [
+        {
+          heading: "The problem with motivation",
+          body: "We've been sold a lie. The fitness industry profits from selling you motivation — pre-workout, inspirational content, hype. But motivation is a feeling, and feelings are temporary. The moment life gets hard, motivation disappears. And then what?",
+        },
+        {
+          heading: "Identity-based change",
+          body: "The most powerful shift you can make is from 'I want to get fit' to 'I am someone who trains.' When your behavior becomes part of your identity, you don't need motivation. You just do it, because that's who you are.",
+        },
+        {
+          heading: "How to build an athletic identity",
+          body: "Start small. Every time you complete a workout — even a 20-minute walk — you cast a vote for the identity of 'person who trains.' Over time, these votes accumulate into an unshakeable self-image. You don't rise to the level of your goals. You fall to the level of your identity.",
+        },
+        {
+          heading: "The CRAZYWORK identity",
+          body: "When you wear CRAZYWORK, you're not just wearing clothing. You're making a statement about who you are. You're someone who puts in the work. Someone who shows up. Someone who earns their rest. That's the identity we're building — one rep, one session, one day at a time.",
+        },
+      ],
     },
     {
+      slug: "zero-to-consistent-90-days",
       tag: "Transformation",
       title: "From Zero to Consistent: A 90-Day Framework",
       excerpt:
@@ -198,8 +266,24 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       readTime: "8 min read",
       image: "/images/mindset.svg",
       featured: false,
+      bgColor: "ink",
+      sections: [
+        {
+          heading: "Days 1–30: Just show up",
+          body: "Forget intensity. Forget your max. The only goal for the first month is to not miss. Lower the bar until showing up is impossible to fail. Consistency is the skill you're training, not strength.",
+        },
+        {
+          heading: "Days 31–60: Build the engine",
+          body: "Now that the habit holds, add structure. Pick a plan and follow it. Progress the weight, the reps, the distance. Small, boring increments compound into results you can see.",
+        },
+        {
+          heading: "Days 61–90: Make it yours",
+          body: "By now, training isn't something you do — it's part of who you are. Adjust the plan to your life, not the other way around. This is the version of you that keeps going long after the 90 days end.",
+        },
+      ],
     },
     {
+      slug: "eating-for-performance",
       tag: "Nutrition",
       title: "Eating for Performance: What Actually Works",
       excerpt:
@@ -207,8 +291,20 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       readTime: "2 min read",
       image: "/images/story.svg",
       featured: false,
+      bgColor: "ink",
+      sections: [
+        {
+          heading: "Protein and the basics",
+          body: "Most of the magic comes from a handful of unsexy fundamentals: enough protein, enough total calories for your goal, and enough sleep. Hit those before you worry about anything else.",
+        },
+        {
+          heading: "Ignore the noise",
+          body: "Supplements, timing windows, and trendy diets are rounding errors next to consistency. Eat whole foods most of the time, stay hydrated, and let the fundamentals do the heavy lifting.",
+        },
+      ],
     },
     {
+      slug: "recovery-protocol",
       tag: "Recovery",
       title: "The Recovery Protocol That Elite Athletes Swear By",
       excerpt:
@@ -216,8 +312,20 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       readTime: "7 min read",
       image: "/images/story.svg",
       featured: false,
+      bgColor: "ink",
+      sections: [
+        {
+          heading: "Sleep is the foundation",
+          body: "No supplement, ice bath, or massage gun comes close to the recovery you get from sleep. Protect it like it's part of your program — because it is the program.",
+        },
+        {
+          heading: "Active recovery",
+          body: "Rest days aren't off days. Easy movement — walking, mobility, light cardio — keeps blood flowing and speeds the rebuild without adding stress.",
+        },
+      ],
     },
     {
+      slug: "5am-club",
       tag: "Mindset",
       title: "The 5 AM Club: Why Training Before Dawn Changes Everything",
       excerpt:
@@ -225,6 +333,17 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       readTime: "4 min read",
       image: "/images/hero.svg",
       featured: false,
+      bgColor: "ink",
+      sections: [
+        {
+          heading: "The decision before the workout",
+          body: "Getting up at 5 AM isn't about the extra hours. It's about winning the first battle of the day before most people are awake. That single decision sets the tone for everything that follows.",
+        },
+        {
+          heading: "Owning your morning",
+          body: "When you train before the world wakes up, nothing can take that session from you. No meeting, no excuse, no emergency. You've already done the hard thing.",
+        },
+      ],
     },
   ],
 };
@@ -298,6 +417,16 @@ export async function setPageContent<K extends ContentPageKey>(
 
 export const getHomeContent = () => getPageContent("home");
 export const getMindsetContent = () => getPageContent("mindset");
+
+// Look up a single mindset article by its (resolved) slug.
+export async function getMindsetArticle(
+  slug: string,
+): Promise<MindsetArticle | null> {
+  const { articles } = await getMindsetContent();
+  return (
+    (articles ?? []).find((a) => mindsetArticleSlug(a) === slug) ?? null
+  );
+}
 export const getDropsContent = () => getPageContent("drops");
 export const getFooterContent = () => getPageContent("footer");
 export const getCheckoutSuccessContent = () => getPageContent("checkoutSuccess");
