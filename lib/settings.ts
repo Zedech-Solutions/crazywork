@@ -10,6 +10,7 @@ export const SETTING_DEFAULTS = {
   lowStockThreshold: 3, // variants at/below this count flag as low stock
 
   socialInstagram: "https://instagram.com/crazywork.my",
+  socialInstagramHandle: "@crazywork.my", // shown next to the IG logo in the footer
   socialTiktok: "",
   socialEmail: "hello@crazywork.my",
   ssmNumber: "",

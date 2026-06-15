@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Instagram, Mail } from "lucide-react";
 import { getFooterContent } from "@/lib/content";
 import { getSettings } from "@/lib/settings";
 
@@ -57,38 +58,56 @@ export async function Footer() {
             </div>
           ))}
         </div>
-        <div className="mt-12 flex flex-col gap-3 border-t border-peach/15 pt-6 text-xs text-peach/50 sm:flex-row sm:items-center sm:justify-between">
+        {/* CONTACT — prominent block under the slogan, above the copyright */}
+        {(settings.socialInstagram || settings.socialEmail) && (
+          <div className="mt-12 border-t border-peach/15 pt-8">
+            <p className="eyebrow text-ember">Contact us</p>
+            <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-10">
+              {settings.socialInstagram && (
+                <a
+                  href={settings.socialInstagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 text-peach transition-colors hover:text-ember"
+                >
+                  <Instagram size={22} className="shrink-0" />
+                  <span className="text-sm font-medium">
+                    {settings.socialInstagramHandle || "Instagram"}
+                  </span>
+                </a>
+              )}
+              {settings.socialEmail && (
+                <a
+                  href={`mailto:${settings.socialEmail}`}
+                  className="flex items-center gap-3 text-peach transition-colors hover:text-ember"
+                >
+                  <Mail size={22} className="shrink-0" />
+                  <span className="text-sm font-medium">{settings.socialEmail}</span>
+                </a>
+              )}
+              {settings.socialTiktok && (
+                <a
+                  href={settings.socialTiktok}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-peach/70 transition-colors hover:text-ember"
+                >
+                  TikTok
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-10 flex flex-col gap-2 border-t border-peach/15 pt-6 text-xs text-peach/50 sm:flex-row sm:items-center sm:justify-between">
           <p>
             © {new Date().getFullYear()} CRAZYWORK
             {settings.ssmNumber ? ` · SSM ${settings.ssmNumber}` : ""} · Malaysia
           </p>
-          <div className="flex gap-5">
-            {settings.socialInstagram && (
-              <a
-                href={settings.socialInstagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-ember"
-              >
-                Instagram
-              </a>
-            )}
-            {settings.socialTiktok && (
-              <a
-                href={settings.socialTiktok}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-ember"
-              >
-                TikTok
-              </a>
-            )}
-            {settings.socialEmail && (
-              <a href={`mailto:${settings.socialEmail}`} className="hover:text-ember">
-                {settings.socialEmail}
-              </a>
-            )}
-          </div>
+          <p>
+            Developed by{" "}
+            <span className="text-peach/70">Zedech Solutions</span>
+          </p>
         </div>
       </div>
     </footer>

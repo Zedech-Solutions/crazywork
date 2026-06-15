@@ -577,6 +577,14 @@ export default function AdminSettingsPage() {
               />
             </div>
             <div>
+              <Label>Instagram handle (footer)</Label>
+              <Input
+                placeholder="@crazywork.my"
+                value={settings.socialInstagramHandle}
+                onChange={(e) => set("socialInstagramHandle", e.target.value)}
+              />
+            </div>
+            <div>
               <Label>TikTok URL</Label>
               <Input
                 value={settings.socialTiktok}
