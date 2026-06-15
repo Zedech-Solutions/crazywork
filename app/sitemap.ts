@@ -1,12 +1,13 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/db";
+import { getMindsetContent, mindsetArticleSlug } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
 
-  const [products, posts] = await Promise.all([
+  const [products, posts, mindset] = await Promise.all([
     prisma.product.findMany({
       where: { status: "active" },
       select: { slug: true, updatedAt: true },
@@ -15,6 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: { published: true, type: "blog" },
       select: { slug: true, updatedAt: true },
     }),
+    getMindsetContent(),
   ]);
 
   const staticPages = [
@@ -44,6 +46,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...posts.map((p) => ({
       url: `${base}/blog/${p.slug}`,
       lastModified: p.updatedAt,
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    })),
+    ...(mindset.articles ?? []).map((a) => ({
+      url: `${base}/mindset/${mindsetArticleSlug(a)}`,
       changeFrequency: "monthly" as const,
       priority: 0.6,
     })),
