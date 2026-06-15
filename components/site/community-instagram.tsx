@@ -23,9 +23,11 @@ export function CommunityInstagram({ url }: { url: string }) {
     const check = () => {
       const iframe = el.querySelector("iframe");
       if (iframe) {
+        // Reveal when the iframe actually loads (it does fire cross-origin) so
+        // the clean skeleton stays up until the embed is rendered — not while
+        // the iframe is still a blank white box. Long backup in case it doesn't.
         iframe.addEventListener("load", finish, { once: true });
-        // IG iframes don't always fire load cross-origin → reveal shortly after.
-        window.setTimeout(finish, 700);
+        window.setTimeout(finish, 2500);
         return true;
       }
       return false;

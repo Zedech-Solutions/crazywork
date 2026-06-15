@@ -35,7 +35,9 @@ export function InstagramEmbed({
   }, [url]);
 
   // No data-instgrm-captioned → the post frame renders with the caption
-  // collapsed (image + header + action bar only).
+  // collapsed (image + header + action bar only). The fallback link is sr-only
+  // so its raw text never flashes through the loading skeleton before Instagram
+  // swaps in the rendered iframe.
   return (
     <blockquote
       className="instagram-media"
@@ -43,7 +45,7 @@ export function InstagramEmbed({
       data-instgrm-version="14"
       style={{ margin: 0, width: "100%", minWidth: 0, border: 0 }}
     >
-      <a href={url} target="_blank" rel="noopener noreferrer">
+      <a href={url} target="_blank" rel="noopener noreferrer" className="sr-only">
         {caption ?? "View on Instagram"}
       </a>
     </blockquote>
