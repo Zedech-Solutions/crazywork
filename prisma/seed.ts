@@ -90,6 +90,7 @@ async function seedCatalogue() {
       name: "Drop 01 — Foundation",
       slug: "drop-01-foundation",
       status: "current",
+      featuredOnHome: true,
       sortOrder: 0,
     },
     update: {},

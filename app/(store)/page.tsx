@@ -19,12 +19,21 @@ import { getSettings } from "@/lib/settings";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [settings, content, currentDrop, communityPhotos] = await Promise.all([
+  const [settings, content, featuredDrops, communityPhotos] = await Promise.all([
     getSettings(),
     getHomeContent(),
-    prisma.drop.findFirst({
-      where: { status: "current" },
+    // Drops the admin chose to feature — any status (current / past / soldout) —
+    // stacked in the saved drag order.
+    prisma.drop.findMany({
+      where: { featuredOnHome: true },
       orderBy: { sortOrder: "asc" },
+      include: {
+        products: {
+          where: { status: "active" },
+          include: { variants: true, images: true, drop: true },
+          orderBy: { createdAt: "desc" },
+        },
+      },
     }),
     prisma.communityPhoto.findMany({
       where: {
@@ -35,9 +44,34 @@ export default async function HomePage() {
       take: 6,
     }),
   ]);
-  const featured = await activeProducts(
-    currentDrop ? { dropId: currentDrop.id } : {},
-  );
+
+  // One section per featured drop. When the admin hasn't featured anything, fall
+  // back to a single "The Latest" section of all active products so the home
+  // page is never empty.
+  const dropSections = featuredDrops.length
+    ? featuredDrops.map((d) => ({
+        id: d.id,
+        name: d.name,
+        status: d.status,
+        products: d.products,
+      }))
+    : [
+        {
+          id: "latest",
+          name: "The Latest",
+          status: "current" as const,
+          products: await activeProducts(),
+        },
+      ];
+
+  const dropEyebrow = (status: string, isFirst: boolean) =>
+    status === "soldout"
+      ? "Sold out"
+      : status === "past"
+        ? "Past drop"
+        : isFirst
+          ? content.featuredEyebrow
+          : "Featured drop";
 
   return (
     <>
@@ -92,32 +126,58 @@ export default async function HomePage() {
       {/* SHOP BY CATEGORY — renders nothing if no categories configured */}
       <CategoryTiles categories={content.categories} />
 
-      {/* FEATURED DROP */}
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="eyebrow text-ember">{content.featuredEyebrow}</p>
-            <h2 className="headline mt-1 text-5xl">
-              {currentDrop?.name ?? "The Latest"}
-            </h2>
+      {/* FEATURED DROPS — one stacked section per drop the admin featured */}
+      {dropSections.map((section, si) => (
+        <section
+          key={section.id}
+          className="mx-auto max-w-7xl px-4 pt-16 sm:px-6"
+        >
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="eyebrow text-ember">
+                {dropEyebrow(section.status, si === 0)}
+              </p>
+              <h2 className="headline mt-1 text-5xl">{section.name}</h2>
+            </div>
+            {si === 0 && settings.dropCountdownUntil && (
+              <CountdownTimer until={settings.dropCountdownUntil} label="Starts in" />
+            )}
           </div>
-          {settings.dropCountdownUntil && (
-            <CountdownTimer until={settings.dropCountdownUntil} label="Starts in" />
+          {section.products.length === 0 ? (
+            <p className="py-6 text-sm text-warmgrey">
+              Pieces from this drop are no longer listed.
+            </p>
+          ) : (
+            // Centered cards so a sparse drop (1–2 items) isn't stuck in the
+            // left corner; a full row still lays out 2-up / 3-up.
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-10">
+              {section.products.slice(0, 6).map((product, i) => {
+                const card = toCardProduct(product);
+                return (
+                  <Reveal
+                    key={product.id}
+                    index={i}
+                    className="w-[calc(50%-0.625rem)] md:w-[calc(33.333%-0.834rem)]"
+                  >
+                    <ProductCard
+                      product={
+                        section.status === "soldout"
+                          ? { ...card, soldOut: true }
+                          : card
+                      }
+                    />
+                  </Reveal>
+                );
+              })}
+            </div>
           )}
-        </div>
-        <div className="grid grid-cols-2 gap-x-5 gap-y-10 md:grid-cols-3">
-          {featured.slice(0, 6).map((product, i) => (
-            <Reveal key={product.id} index={i}>
-              <ProductCard product={toCardProduct(product)} />
-            </Reveal>
-          ))}
-        </div>
-        <div className="mt-10 text-center">
-          <Button asChild variant="outline">
-            <Link href="/shop">View all</Link>
-          </Button>
-        </div>
-      </section>
+        </section>
+      ))}
+      <div className="mx-auto max-w-7xl px-4 pb-16 pt-10 text-center sm:px-6">
+        <Button asChild variant="outline">
+          <Link href="/shop">View all</Link>
+        </Button>
+      </div>
 
       {/* PROMO SECTIONS — admin-managed bands / carousel, per slot */}
       <PromoSections sections={content.sections} slot="afterFeatured" />

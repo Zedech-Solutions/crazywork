@@ -183,6 +183,7 @@ const PROVIDERS: Provider[] = [
       "discord_lowstock_webhook_url",
       "discord_error_webhook_url",
     ],
+    testEndpoint: "/integrations/discord/test",
   },
 ];
 

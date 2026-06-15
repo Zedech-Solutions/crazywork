@@ -5,6 +5,7 @@ import { prisma, TX_OPTS } from "@/lib/db";
 import { storage, deleteObjects } from "@/lib/integrations/storage";
 import { mailer } from "@/lib/integrations/mailer";
 import { payment } from "@/lib/integrations/payment";
+import { verifyDiscord } from "@/lib/integrations/notifier";
 import { removedUrls, contentMediaUrls } from "@/lib/integrations/media-cleanup";
 import {
   createManualOrder,
@@ -566,10 +567,29 @@ admin.post("/drops", async (c) => {
       status: ["current", "past", "soldout"].includes(body.status)
         ? body.status
         : "current",
+      featuredOnHome: Boolean(body.featuredOnHome),
       sortOrder: Number(body.sortOrder ?? 0),
     },
   });
   return c.json({ ok: true, id: drop.id });
+});
+
+// Reorder via drag-and-drop: ids are top-to-bottom; sortOrder ascending, so the
+// top drop stacks first on the home page.
+admin.post("/drops/reorder", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { ids?: unknown };
+  const ids = Array.isArray(body.ids)
+    ? body.ids.filter((x): x is string => typeof x === "string")
+    : [];
+  if (!ids.length) {
+    return c.json({ ok: false, message: "No order provided." }, 400);
+  }
+  await prisma.$transaction(
+    ids.map((id, i) =>
+      prisma.drop.update({ where: { id }, data: { sortOrder: i } }),
+    ),
+  );
+  return c.json({ ok: true });
 });
 
 admin.patch("/drops/:id", async (c) => {
@@ -581,6 +601,9 @@ admin.patch("/drops/:id", async (c) => {
       ...(body.slug !== undefined ? { slug: String(body.slug) } : {}),
       ...(["current", "past", "soldout"].includes(body.status)
         ? { status: body.status }
+        : {}),
+      ...(body.featuredOnHome !== undefined
+        ? { featuredOnHome: Boolean(body.featuredOnHome) }
         : {}),
       ...(body.sortOrder !== undefined
         ? { sortOrder: Number(body.sortOrder) }
@@ -1450,4 +1473,9 @@ admin.post("/integrations/stripe/test", async (c) => {
 // Real Resend connectivity check: validates the saved API key.
 admin.post("/integrations/resend/test", async (c) => {
   return c.json(await mailer.verifyConnection());
+});
+
+// Real Discord check: posts a test embed to each configured webhook channel.
+admin.post("/integrations/discord/test", async (c) => {
+  return c.json(await verifyDiscord());
 });

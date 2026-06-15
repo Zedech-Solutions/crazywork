@@ -151,13 +151,14 @@ enum DropStatus {
 }
 
 model Drop {
-  id        String     @id @default(cuid())
-  name      String
-  slug      String     @unique
-  status    DropStatus @default(current)
-  sortOrder Int        @default(0)
-  products  Product[]
-  createdAt DateTime   @default(now())
+  id             String     @id @default(cuid())
+  name           String
+  slug           String     @unique
+  status         DropStatus @default(current)
+  featuredOnHome Boolean    @default(false)
+  sortOrder      Int        @default(0)
+  products       Product[]
+  createdAt      DateTime   @default(now())
 }
 
 // ───────────────────────── Orders ─────────────────────────
