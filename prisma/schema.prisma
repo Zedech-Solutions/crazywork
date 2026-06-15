@@ -8,7 +8,10 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Runtime uses the pooled connection (Neon -pooler host); migrations use the
+  // direct/unpooled one. Locally both point at the same Docker Postgres.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ───────────────────────── Auth (Better Auth) ─────────────────────────
@@ -178,6 +181,8 @@ model Order {
   customerEmail       String
   customerPhone       String?
   shippingAddress     String
+  shippingPostcode    String?
+  shippingCity        String?
   shippingState       String
   shippingZone        String // "west" | "east"
   shippingFee         Decimal     @db.Decimal(10, 2)
@@ -221,22 +226,26 @@ model OrderItem {
 enum DiscountSource {
   popup
   signup
+  campaign
 }
 
 model DiscountCode {
   id           String         @id @default(cuid())
   code         String         @unique
-  issuedEmail  String
-  percentage   Int
+  issuedEmail  String? // null for campaign/bulk codes (open to anyone)
+  percentage   Int            @default(0) // percentage discount (0 when fixed-amount)
+  amountOffSen Int? // fixed discount in sen; when set, overrides percentage
   used         Boolean        @default(false)
   lockedUserId String? // set permanently on first authenticated redemption
   lockedUser   User?          @relation(fields: [lockedUserId], references: [id])
   source       DiscountSource
+  batchLabel   String? // groups campaign/influencer codes into a batch
   expiresAt    DateTime?
   orders       Order[]
   createdAt    DateTime       @default(now())
 
   @@index([issuedEmail])
+  @@index([batchLabel])
 }
 
 enum CampaignType {
