@@ -433,6 +433,7 @@ function productData(body: Record<string, unknown>) {
     basePrice: Number(body.basePrice ?? 0).toFixed(2),
     isNew: Boolean(body.isNew),
     isLimited: Boolean(body.isLimited),
+    soldOut: Boolean(body.soldOut),
     status: body.status === "active" ? ("active" as const) : ("draft" as const),
     externalUrl: (body.externalUrl as string) || null,
     dropId: (body.dropId as string) || null,
@@ -1116,8 +1117,10 @@ admin.patch("/community/:id", async (c) => {
 admin.delete("/community/:id", async (c) => {
   const id = c.req.param("id");
   const photo = await prisma.communityPhoto.findUnique({ where: { id } });
-  await prisma.communityPhoto.delete({ where: { id } });
-  await deleteObjects([photo?.imageUrl]);
+  // Idempotent: a double-click / stale list shouldn't 500 on an already-gone row.
+  if (!photo) return c.json({ ok: true });
+  await prisma.communityPhoto.deleteMany({ where: { id } });
+  await deleteObjects([photo.imageUrl]);
   return c.json({ ok: true });
 });
 

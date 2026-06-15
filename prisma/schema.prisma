@@ -107,6 +107,7 @@ model Product {
   basePrice   Decimal          @db.Decimal(10, 2)
   isNew       Boolean          @default(false)
   isLimited   Boolean          @default(false)
+  soldOut     Boolean          @default(false) // manual override: show sold out even with stock
   status      ProductStatus    @default(draft)
   externalUrl String? // optional IG/marketplace link
   sizeGuide   Json? // per-product override; null → use the global default

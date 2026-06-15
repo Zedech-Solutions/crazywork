@@ -8,6 +8,21 @@ export type ProductWithRelations = Prisma.ProductGetPayload<{
   include: { variants: true; images: true; drop: true };
 }>;
 
+// A product counts as sold out when: it's manually flagged, its drop is marked
+// sold out, or every variant is out of stock. Used everywhere a product renders
+// so the state is consistent across all pages.
+export function isSoldOut(product: {
+  soldOut?: boolean;
+  drop?: { status: string } | null;
+  variants: { stock: number }[];
+}): boolean {
+  return (
+    Boolean(product.soldOut) ||
+    product.drop?.status === "soldout" ||
+    isProductSoldOut(product.variants)
+  );
+}
+
 export function toCardProduct(product: ProductWithRelations): CardProduct {
   const inStock = product.variants.filter((v) => v.stock > 0);
   return {
@@ -21,9 +36,9 @@ export function toCardProduct(product: ProductWithRelations): CardProduct {
         ?.imageUrl ?? null,
     isNew: product.isNew,
     isLimited: product.isLimited,
-    soldOut: isProductSoldOut(product.variants),
+    soldOut: isSoldOut(product),
     singleVariant:
-      inStock.length === 1
+      !isSoldOut(product) && inStock.length === 1
         ? {
             variantId: inStock[0].id,
             size: inStock[0].size,
