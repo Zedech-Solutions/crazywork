@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PdpClient } from "@/components/product/pdp-client";
 import { ProductCard } from "@/components/site/product-card";
-import { activeProducts, toCardProduct } from "@/lib/catalog";
+import { activeProducts, isSoldOut, toCardProduct } from "@/lib/catalog";
 import { prisma } from "@/lib/db";
 import { toSen } from "@/lib/money";
 import { getDefaultSizeGuide, resolveSizeGuide } from "@/lib/size-guide";
@@ -12,7 +12,11 @@ export const dynamic = "force-dynamic";
 async function getProduct(slug: string) {
   return prisma.product.findFirst({
     where: { slug, status: "active" },
-    include: { variants: true, images: { orderBy: { sortOrder: "asc" } } },
+    include: {
+      variants: true,
+      images: { orderBy: { sortOrder: "asc" } },
+      drop: true,
+    },
   });
 }
 
@@ -73,6 +77,7 @@ export default async function ProductPage({
           basePriceSen: toSen(product.basePrice),
           isNew: product.isNew,
           isLimited: product.isLimited,
+          soldOut: isSoldOut(product),
           images: product.images.map((img) => ({
             url: img.imageUrl,
             alt: img.alt ?? product.name,

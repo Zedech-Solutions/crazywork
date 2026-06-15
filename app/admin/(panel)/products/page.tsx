@@ -37,6 +37,7 @@ interface ProductForm {
   basePrice: string;
   isNew: boolean;
   isLimited: boolean;
+  soldOut: boolean;
   status: "active" | "draft";
   dropId: string;
   metaTitle: string;
@@ -56,6 +57,7 @@ interface ApiProduct {
   basePrice: string;
   isNew: boolean;
   isLimited: boolean;
+  soldOut: boolean;
   status: "active" | "draft";
   dropId: string | null;
   metaTitle: string | null;
@@ -83,6 +85,7 @@ const EMPTY: ProductForm = {
   basePrice: "0",
   isNew: false,
   isLimited: false,
+  soldOut: false,
   status: "draft",
   dropId: "",
   metaTitle: "",
@@ -137,6 +140,7 @@ export default function AdminProductsPage() {
       basePrice: String(Number(p.basePrice)),
       isNew: p.isNew,
       isLimited: p.isLimited,
+      soldOut: p.soldOut,
       status: p.status,
       dropId: p.dropId ?? "",
       metaTitle: p.metaTitle ?? "",
@@ -324,6 +328,11 @@ export default function AdminProductsPage() {
               label="LIMITED badge"
               checked={editing.isLimited}
               onCheckedChange={(v) => set("isLimited", v)}
+            />
+            <CheckboxField
+              label="SOLD OUT (force, even with stock)"
+              checked={editing.soldOut}
+              onCheckedChange={(v) => set("soldOut", v)}
             />
           </div>
 

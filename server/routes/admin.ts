@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { Prisma } from "@prisma/client";
 import { getSuperadminSession } from "@/lib/admin-guard";
-import { prisma } from "@/lib/db";
+import { prisma, TX_OPTS } from "@/lib/db";
 import { storage, deleteObjects } from "@/lib/integrations/storage";
 import { mailer } from "@/lib/integrations/mailer";
 import { payment } from "@/lib/integrations/payment";
+import { verifyDiscord } from "@/lib/integrations/notifier";
 import { removedUrls, contentMediaUrls } from "@/lib/integrations/media-cleanup";
 import {
   createManualOrder,
@@ -432,6 +433,7 @@ function productData(body: Record<string, unknown>) {
     basePrice: Number(body.basePrice ?? 0).toFixed(2),
     isNew: Boolean(body.isNew),
     isLimited: Boolean(body.isLimited),
+    soldOut: Boolean(body.soldOut),
     status: body.status === "active" ? ("active" as const) : ("draft" as const),
     externalUrl: (body.externalUrl as string) || null,
     dropId: (body.dropId as string) || null,
@@ -532,7 +534,7 @@ admin.patch("/products/:id", async (c) => {
         })),
       });
     }
-  });
+  }, TX_OPTS);
   await deleteObjects(orphanedImages);
   return c.json({ ok: true });
 });
@@ -566,10 +568,29 @@ admin.post("/drops", async (c) => {
       status: ["current", "past", "soldout"].includes(body.status)
         ? body.status
         : "current",
+      featuredOnHome: Boolean(body.featuredOnHome),
       sortOrder: Number(body.sortOrder ?? 0),
     },
   });
   return c.json({ ok: true, id: drop.id });
+});
+
+// Reorder via drag-and-drop: ids are top-to-bottom; sortOrder ascending, so the
+// top drop stacks first on the home page.
+admin.post("/drops/reorder", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { ids?: unknown };
+  const ids = Array.isArray(body.ids)
+    ? body.ids.filter((x): x is string => typeof x === "string")
+    : [];
+  if (!ids.length) {
+    return c.json({ ok: false, message: "No order provided." }, 400);
+  }
+  await prisma.$transaction(
+    ids.map((id, i) =>
+      prisma.drop.update({ where: { id }, data: { sortOrder: i } }),
+    ),
+  );
+  return c.json({ ok: true });
 });
 
 admin.patch("/drops/:id", async (c) => {
@@ -581,6 +602,9 @@ admin.patch("/drops/:id", async (c) => {
       ...(body.slug !== undefined ? { slug: String(body.slug) } : {}),
       ...(["current", "past", "soldout"].includes(body.status)
         ? { status: body.status }
+        : {}),
+      ...(body.featuredOnHome !== undefined
+        ? { featuredOnHome: Boolean(body.featuredOnHome) }
         : {}),
       ...(body.sortOrder !== undefined
         ? { sortOrder: Number(body.sortOrder) }
@@ -1093,8 +1117,10 @@ admin.patch("/community/:id", async (c) => {
 admin.delete("/community/:id", async (c) => {
   const id = c.req.param("id");
   const photo = await prisma.communityPhoto.findUnique({ where: { id } });
-  await prisma.communityPhoto.delete({ where: { id } });
-  await deleteObjects([photo?.imageUrl]);
+  // Idempotent: a double-click / stale list shouldn't 500 on an already-gone row.
+  if (!photo) return c.json({ ok: true });
+  await prisma.communityPhoto.deleteMany({ where: { id } });
+  await deleteObjects([photo.imageUrl]);
   return c.json({ ok: true });
 });
 
@@ -1450,4 +1476,9 @@ admin.post("/integrations/stripe/test", async (c) => {
 // Real Resend connectivity check: validates the saved API key.
 admin.post("/integrations/resend/test", async (c) => {
   return c.json(await mailer.verifyConnection());
+});
+
+// Real Discord check: posts a test embed to each configured webhook channel.
+admin.post("/integrations/discord/test", async (c) => {
+  return c.json(await verifyDiscord());
 });

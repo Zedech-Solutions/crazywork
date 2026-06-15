@@ -1,4 +1,4 @@
-import { getSecret } from "@/lib/secrets";
+import { getSecret, type RuntimeSecretKey } from "@/lib/secrets";
 import { getSetting } from "@/lib/settings";
 import type { LowStockAlert, Notifier, OrderAlert } from "./types";
 
@@ -153,4 +153,67 @@ export async function reportAppError(
   } catch (e) {
     console.error("[error] failed to post error webhook", e);
   }
+}
+
+// Real "Test" for the Discord integration: posts a test embed to each configured
+// webhook so the owner sees the message land in the right channel. Returns the
+// { ok, message } shape the admin Test button expects.
+export async function verifyDiscord(): Promise<{
+  ok: boolean;
+  message: string;
+}> {
+  const channels: { label: string; key: RuntimeSecretKey }[] = [
+    { label: "Orders", key: "discord_webhook_url" },
+    { label: "Low-stock", key: "discord_lowstock_webhook_url" },
+    { label: "Error", key: "discord_error_webhook_url" },
+  ];
+
+  const configured: { label: string; url: string }[] = [];
+  for (const ch of channels) {
+    const url = await getSecret(ch.key).catch(() => null);
+    if (url) configured.push({ label: ch.label, url });
+  }
+  if (configured.length === 0) {
+    return { ok: false, message: "No Discord webhook configured." };
+  }
+
+  const results = await Promise.all(
+    configured.map(async (ch) => {
+      try {
+        const res = await fetch(ch.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            embeds: [
+              {
+                title: "✅ Test alert",
+                description: `Your **${ch.label}** channel is wired up correctly.`,
+                color: 0xea580c,
+                footer: { text: "CRAZYWORK" },
+                timestamp: new Date().toISOString(),
+              },
+            ],
+          }),
+        });
+        return { label: ch.label, ok: res.ok, status: res.status };
+      } catch {
+        return { label: ch.label, ok: false, status: 0 };
+      }
+    }),
+  );
+
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length === 0) {
+    const n = results.length;
+    return {
+      ok: true,
+      message: `Sent a test message to ${n} channel${n > 1 ? "s" : ""} — check Discord.`,
+    };
+  }
+  return {
+    ok: false,
+    message: `Failed: ${failed
+      .map((f) => `${f.label} (${f.status ? `HTTP ${f.status}` : "no response"})`)
+      .join(", ")}.`,
+  };
 }

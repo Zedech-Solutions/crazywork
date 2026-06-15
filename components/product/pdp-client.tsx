@@ -27,6 +27,7 @@ export interface PdpProduct {
   basePriceSen: number;
   isNew: boolean;
   isLimited: boolean;
+  soldOut: boolean; // forced sold out (manual flag or sold-out drop)
   images: { url: string; alt: string }[];
   variants: PdpVariant[];
 }
@@ -56,8 +57,9 @@ export function PdpClient({
   const selected = product.variants.find(
     (v) => v.size === size && v.colour === colour,
   );
-  const soldOut = !selected || selected.stock <= 0;
-  const allSoldOut = product.variants.every((v) => v.stock <= 0);
+  const soldOut = product.soldOut || !selected || selected.stock <= 0;
+  const allSoldOut =
+    product.soldOut || product.variants.every((v) => v.stock <= 0);
 
   useEffect(() => {
     const target = ctaRef.current;

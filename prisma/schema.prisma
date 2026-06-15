@@ -107,6 +107,7 @@ model Product {
   basePrice   Decimal          @db.Decimal(10, 2)
   isNew       Boolean          @default(false)
   isLimited   Boolean          @default(false)
+  soldOut     Boolean          @default(false) // manual override: show sold out even with stock
   status      ProductStatus    @default(draft)
   externalUrl String? // optional IG/marketplace link
   sizeGuide   Json? // per-product override; null → use the global default
@@ -151,13 +152,14 @@ enum DropStatus {
 }
 
 model Drop {
-  id        String     @id @default(cuid())
-  name      String
-  slug      String     @unique
-  status    DropStatus @default(current)
-  sortOrder Int        @default(0)
-  products  Product[]
-  createdAt DateTime   @default(now())
+  id             String     @id @default(cuid())
+  name           String
+  slug           String     @unique
+  status         DropStatus @default(current)
+  featuredOnHome Boolean    @default(false)
+  sortOrder      Int        @default(0)
+  products       Product[]
+  createdAt      DateTime   @default(now())
 }
 
 // ───────────────────────── Orders ─────────────────────────

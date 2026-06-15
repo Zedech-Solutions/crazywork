@@ -183,6 +183,7 @@ const PROVIDERS: Provider[] = [
       "discord_lowstock_webhook_url",
       "discord_error_webhook_url",
     ],
+    testEndpoint: "/integrations/discord/test",
   },
 ];
 
@@ -573,6 +574,14 @@ export default function AdminSettingsPage() {
               <Input
                 value={settings.socialInstagram}
                 onChange={(e) => set("socialInstagram", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Instagram handle (footer)</Label>
+              <Input
+                placeholder="@crazywork.my"
+                value={settings.socialInstagramHandle}
+                onChange={(e) => set("socialInstagramHandle", e.target.value)}
               />
             </div>
             <div>

@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import { prisma } from "@/lib/db";
+import { prisma, TX_OPTS } from "@/lib/db";
 import { evaluateCart, type PricingResult } from "@/lib/discount";
 import { toSen } from "@/lib/money";
 import {
@@ -470,7 +470,7 @@ export async function createManualOrder(
           },
         },
       });
-    });
+    }, TX_OPTS);
     return {
       ok: true,
       orderId: order.id,
@@ -540,7 +540,7 @@ export async function markOrderPaid(
       include: { items: true },
     });
     return { ok: true as const, order: updated };
-  });
+  }, TX_OPTS);
 
   if (result.ok && "order" in result && result.order) {
     const order = result.order;
