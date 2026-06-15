@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { Prisma } from "@prisma/client";
 import { getSuperadminSession } from "@/lib/admin-guard";
-import { prisma } from "@/lib/db";
+import { prisma, TX_OPTS } from "@/lib/db";
 import { storage, deleteObjects } from "@/lib/integrations/storage";
 import { mailer } from "@/lib/integrations/mailer";
 import { payment } from "@/lib/integrations/payment";
@@ -532,7 +532,7 @@ admin.patch("/products/:id", async (c) => {
         })),
       });
     }
-  });
+  }, TX_OPTS);
   await deleteObjects(orphanedImages);
   return c.json({ ok: true });
 });
