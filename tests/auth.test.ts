@@ -66,12 +66,15 @@ describe("welcome promo code on signup", () => {
     expect(code?.code).toMatch(/^CRAZY/);
   });
 
-  test("one code per email — reissue returns the same code", async () => {
+  test("one code per email — reissue returns the same code, isNew only once", async () => {
     const email = emailFor("reuse");
     const first = await issueCodeForEmail(email, "popup");
     const second = await issueCodeForEmail(email, "signup");
-    expect(second.id).toBe(first.id);
-    expect(second.code).toBe(first.code);
+    expect(second.record.id).toBe(first.record.id);
+    expect(second.record.code).toBe(first.record.code);
+    // isNew is true only the first time → the welcome email fires exactly once.
+    expect(first.isNew).toBe(true);
+    expect(second.isNew).toBe(false);
   });
 });
 

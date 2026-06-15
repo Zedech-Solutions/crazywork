@@ -189,16 +189,18 @@ storefront.post("/subscribe", async (c) => {
     create: { email, source: "popup" },
     update: {},
   });
-  const code = await issueCodeForEmail(email, "popup");
-  // Only (re)send the code email if it's still redeemable.
-  if (!code.used) {
-    await mailer.send(email, "welcome_code", { code: code.code });
+  const { record, isNew } = await issueCodeForEmail(email, "popup");
+  // Email the code exactly once — the first time this address claims it.
+  // Re-submitting (or having signed up already) won't fire it again.
+  if (isNew) {
+    await mailer.send(email, "welcome_code", { code: record.code });
   }
   return c.json({
     ok: true,
-    code: code.code,
-    percentage: code.percentage,
-    used: code.used,
+    code: record.code,
+    percentage: record.percentage,
+    used: record.used,
+    alreadyClaimed: !isNew,
   });
 });
 
@@ -238,12 +240,12 @@ storefront.get("/orders/lookup", async (c) => {
 storefront.get("/me/code", async (c) => {
   const session = await sessionFor(c.req.raw.headers);
   if (!session) return c.json({ ok: false }, 401);
-  const code = await issueCodeForEmail(session.user.email, "signup");
+  const { record } = await issueCodeForEmail(session.user.email, "signup");
   return c.json({
     ok: true,
-    code: code.code,
-    percentage: code.percentage,
-    used: code.used,
+    code: record.code,
+    percentage: record.percentage,
+    used: record.used,
   });
 });
 

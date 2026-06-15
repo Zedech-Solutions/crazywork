@@ -21,6 +21,12 @@ export const SETTING_DEFAULTS = {
     "Almost there! Add {n} more and save {percent}% on your cart",
   announcementBar: "FREE SHIPPING OVER RM150 · WEST & EAST MALAYSIA",
   dropCountdownUntil: "", // ISO date — shows a countdown on the featured drop when set
+
+  // Transactional email toggles — which scenarios actually send (default all on).
+  emailWelcomeCode: true, // 10% first-purchase code (signup + popup)
+  emailPasswordReset: true, // password reset link
+  emailOrderConfirmation: true, // order paid confirmation
+  emailOrderStatusChange: true, // order status update (shipped, etc.)
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

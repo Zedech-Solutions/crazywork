@@ -18,6 +18,7 @@ export const RUNTIME_SECRET_KEYS = [
   "resend_from_email",
   "discord_webhook_url",
   "discord_lowstock_webhook_url", // separate channel for low-stock alerts
+  "discord_error_webhook_url", // separate channel for application errors
 ] as const;
 
 export type RuntimeSecretKey = (typeof RUNTIME_SECRET_KEYS)[number];

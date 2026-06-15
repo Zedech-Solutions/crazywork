@@ -34,6 +34,7 @@ const SECRET_LABELS: Record<string, string> = {
   resend_from_email: "From email",
   discord_webhook_url: "Orders webhook",
   discord_lowstock_webhook_url: "Low-stock webhook",
+  discord_error_webhook_url: "Error webhook",
 };
 
 // The drop countdown is stored as an unambiguous ISO instant in Malaysia time
@@ -146,13 +147,42 @@ const PROVIDERS: Provider[] = [
     blurb: "Transactional email — confirmations & resets.",
     iconSrc: "/images/integrations/resend.jpg",
     keys: ["resend_api_key", "resend_from_email"],
+    testEndpoint: "/integrations/resend/test",
+    setupSteps: {
+      test: [
+        {
+          text: "Create a free account at resend.com and verify your sending domain (Domains → Add domain, then add the DNS records they give you). Until a domain is verified you can only send to your own address.",
+        },
+        {
+          text: "API Keys → Create API Key (Full access). Copy the re_… key and paste it into the API key field below, then Save.",
+        },
+        {
+          text: "Set the From email to an address on your verified domain, e.g. hello@yourdomain.com. Paste it into the From email field and Save.",
+        },
+        {
+          text: "Press Test on this card — it validates the key against Resend. Then trigger a real one: use 'Forgot password' on sign-in, or the email popup, and check your inbox.",
+        },
+      ],
+      live: [
+        {
+          text: "Same keys work for production — just set them in Vercel env or here on the live deployment. Make sure the sending domain is verified in Resend.",
+        },
+        {
+          text: "Use a From address on your verified domain. Resend's free tier covers low volume; upgrade there if you outgrow it.",
+        },
+      ],
+    },
   },
   {
     id: "discord",
     name: "Discord",
-    blurb: "Order alerts + low-stock warnings, each to its own channel.",
+    blurb: "Order alerts, low-stock + error reports, each to its own channel.",
     iconSrc: "/images/integrations/discord.png",
-    keys: ["discord_webhook_url", "discord_lowstock_webhook_url"],
+    keys: [
+      "discord_webhook_url",
+      "discord_lowstock_webhook_url",
+      "discord_error_webhook_url",
+    ],
   },
 ];
 
@@ -611,6 +641,42 @@ export default function AdminSettingsPage() {
               When on, orders paid through Stripe test keys appear in the Orders
               list (tagged TEST) and are also sent to the Discord webhook.
             </p>
+          </div>
+
+          <div className="mt-6 rounded-xl border border-warmgrey/60 bg-sand/40 p-4">
+            <p className="subhead text-base">Email notifications</p>
+            <p className="mt-0.5 text-[11px] text-warmgrey">
+              Choose which transactional emails actually send. Requires Resend to
+              be configured. Turning one off stops that scenario for everyone.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <CheckboxField
+                label="Welcome / first-purchase code"
+                checked={settings.emailWelcomeCode}
+                onCheckedChange={(v) => set("emailWelcomeCode", v)}
+              />
+              <CheckboxField
+                label="Password reset link"
+                checked={settings.emailPasswordReset}
+                onCheckedChange={(v) => set("emailPasswordReset", v)}
+              />
+              <CheckboxField
+                label="Order confirmation (on payment)"
+                checked={settings.emailOrderConfirmation}
+                onCheckedChange={(v) => set("emailOrderConfirmation", v)}
+              />
+              <CheckboxField
+                label="Order status update (shipped, etc.)"
+                checked={settings.emailOrderStatusChange}
+                onCheckedChange={(v) => set("emailOrderStatusChange", v)}
+              />
+            </div>
+            {!settings.emailPasswordReset && (
+              <p className="mt-2 text-[11px] text-red-700">
+                Heads up: with password-reset emails off, customers can&apos;t
+                recover their account by email.
+              </p>
+            )}
           </div>
 
           <div className="mt-6 flex items-center gap-3">

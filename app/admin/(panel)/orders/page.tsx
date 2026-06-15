@@ -294,6 +294,10 @@ export default function AdminOrdersPage() {
 
   async function setStatus(order: ApiOrder, status: string) {
     setError(null);
+    if (status === "shipped" && (!tracking.courier.trim() || !tracking.number.trim())) {
+      setError("Enter the courier and tracking number before marking this order shipped.");
+      return;
+    }
     try {
       await adminFetch(`/orders/${order.id}/status`, {
         method: "PATCH",
@@ -925,7 +929,13 @@ export default function AdminOrdersPage() {
                           <p className="mt-1">{order.orderNote}</p>
                         </div>
                       )}
-                      <div className="mt-4 flex flex-wrap items-end gap-2">
+                      <p className="mt-4 eyebrow text-brown">
+                        Courier &amp; tracking
+                        <span className="ml-1 normal-case tracking-normal text-warmgrey">
+                          — required to mark shipped
+                        </span>
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap items-end gap-2">
                         <div>
                           <p className="eyebrow text-brown">Courier</p>
                           <Input
@@ -958,7 +968,10 @@ export default function AdminOrdersPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 flex flex-col gap-2 border-t border-warmgrey pt-4 sm:flex-row sm:flex-wrap sm:items-center">
+                  {error && (
+                    <p className="mt-4 text-sm text-red-700">{error}</p>
+                  )}
+                  <div className="mt-3 flex flex-col gap-2 border-t border-warmgrey pt-4 sm:flex-row sm:flex-wrap sm:items-center">
                     {STATUSES.filter((s) => s !== order.status).map((s) => (
                       <Button
                         key={s}

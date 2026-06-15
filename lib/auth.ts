@@ -45,9 +45,12 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          // welcome 10% first-purchase code (one per email, reused)
-          const code = await issueCodeForEmail(user.email, "signup");
-          await mailer.send(user.email, "welcome_code", { code: code.code });
+          // welcome 10% first-purchase code — email only on first issue, so a
+          // popup subscriber who later signs up isn't emailed the code twice.
+          const { record, isNew } = await issueCodeForEmail(user.email, "signup");
+          if (isNew) {
+            await mailer.send(user.email, "welcome_code", { code: record.code });
+          }
         },
       },
     },

@@ -13,6 +13,7 @@ export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState<string | null>(null);
   const [used, setUsed] = useState(false);
+  const [claimed, setClaimed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -43,6 +44,7 @@ export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
       } else {
         setCode(body.code);
         setUsed(Boolean(body.used));
+        setClaimed(Boolean(body.alreadyClaimed));
       }
     } catch {
       setError("Something went wrong.");
@@ -75,9 +77,13 @@ export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
           </div>
         ) : code ? (
           <div className="text-center">
-            <DialogTitle className="headline text-4xl">You&apos;re in.</DialogTitle>
+            <DialogTitle className="headline text-4xl">
+              {claimed ? "Already yours." : "You’re in."}
+            </DialogTitle>
             <p className="mt-3 text-sm text-brown">
-              Your 10% first-purchase code — it&apos;s locked to this email:
+              {claimed
+                ? "This email already has its 10% first-purchase code:"
+                : "Your 10% first-purchase code — it’s locked to this email:"}
             </p>
             <button
               className="mt-4 inline-block border border-dashed border-ember px-6 py-3 subhead text-2xl text-ember cursor-pointer"
@@ -86,7 +92,11 @@ export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
             >
               {code}
             </button>
-            <p className="mt-2 text-xs text-warmgrey">Click to copy · also emailed to you</p>
+            <p className="mt-2 text-xs text-warmgrey">
+              {claimed
+                ? "Click to copy · already emailed when you first claimed it"
+                : "Click to copy · also emailed to you"}
+            </p>
           </div>
         ) : (
           <>

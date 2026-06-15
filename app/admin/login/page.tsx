@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ParticleField } from "@/components/admin/particle-field";
 import { authClient } from "@/lib/auth-client";
 
 export const dynamic = "force-dynamic";
@@ -43,8 +44,16 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink px-4 text-peach">
-      <div className="w-full max-w-sm">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink px-4 text-peach">
+      {/* Animated particle constellation backdrop */}
+      <ParticleField />
+      {/* Soft ember glow behind the card for depth */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ember/15 blur-[120px]"
+      />
+
+      <div className="relative z-10 w-full max-w-sm">
         <div className="mb-8 text-center">
           <p className="headline text-3xl tracking-[0.15em]">CRAZYWORK</p>
           <p className="eyebrow mt-1 text-ember">Admin Panel</p>
@@ -52,7 +61,7 @@ export default function AdminLoginPage() {
 
         <form
           onSubmit={submit}
-          className="border border-peach/15 bg-peach/[0.03] p-6"
+          className="border border-peach/15 bg-ink/50 p-6 backdrop-blur-md"
         >
           <h1 className="subhead text-xl">Sign in to manage the store</h1>
           <div className="mt-5 space-y-4">

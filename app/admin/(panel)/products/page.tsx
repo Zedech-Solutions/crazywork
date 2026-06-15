@@ -95,6 +95,7 @@ const EMPTY: ProductForm = {
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [lowStockThreshold, setLowStockThreshold] = useState(0);
   const [drops, setDrops] = useState<{ id: string; name: string }[]>([]);
   const [editing, setEditing] = useState<ProductForm | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,8 +112,11 @@ export default function AdminProductsPage() {
   }, [page, pageCount]);
 
   const reload = useCallback(() => {
-    adminFetch<{ products: ApiProduct[] }>("/products")
-      .then((r) => setProducts(r.products))
+    adminFetch<{ products: ApiProduct[]; lowStockThreshold: number }>("/products")
+      .then((r) => {
+        setProducts(r.products);
+        setLowStockThreshold(r.lowStockThreshold);
+      })
       .catch((e) => setError(e.message));
     adminFetch<{ drops: { id: string; name: string }[] }>("/drops")
       .then((r) => setDrops(r.drops))
@@ -591,7 +595,20 @@ export default function AdminProductsPage() {
                   </span>
                 </td>
                 <td className="py-3 pr-3">{formatRM(rm(Number(p.basePrice)))}</td>
-                <td className={`py-3 pr-3 ${stock === 0 ? "font-bold text-red-700" : ""}`}>
+                <td
+                  className={`py-3 pr-3 ${
+                    stock <= lowStockThreshold
+                      ? stock === 0
+                        ? "font-bold text-red-700"
+                        : "font-bold text-red-600"
+                      : ""
+                  }`}
+                  title={
+                    stock <= lowStockThreshold
+                      ? `Low stock (≤ ${lowStockThreshold})`
+                      : undefined
+                  }
+                >
                   {stock}
                 </td>
                 <td className="py-3 pr-3 text-brown">{p.drop?.name ?? "—"}</td>

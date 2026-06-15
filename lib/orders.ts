@@ -199,6 +199,32 @@ export async function priceCart(input: {
 
 const toRM = (sen: number) => (sen / 100).toFixed(2);
 
+// Build the item rows for an order email: a label plus the product's primary
+// photo (R2 URL) for the thumbnail strip. Shared by confirmation + status mails.
+async function orderEmailItems(
+  items: {
+    productId: string;
+    productName: string;
+    size: string;
+    colour: string;
+    quantity: number;
+  }[],
+): Promise<{ label: string; image: string | null }[]> {
+  return Promise.all(
+    items.map(async (i) => {
+      const img = await prisma.productImage.findFirst({
+        where: { productId: i.productId },
+        orderBy: { sortOrder: "asc" },
+        select: { imageUrl: true },
+      });
+      return {
+        label: `${i.quantity}× ${i.productName} (${i.size}/${i.colour})`,
+        image: img?.imageUrl ?? null,
+      };
+    }),
+  );
+}
+
 export interface PlaceOrderInput {
   items: CheckoutItemInput[];
   shippingZone: ShippingZone;
@@ -273,14 +299,8 @@ export async function placeOrder(
       },
     });
 
-  await mailer.send(order.customerEmail, "order_confirmation", {
-    orderNumber: order.orderNumber,
-    total: toRM(pricing.total),
-    items: lines.map(
-      (l) => `${l.quantity}× ${l.productName} (${l.size}/${l.colour})`,
-    ),
-  });
-
+  // The order confirmation email is sent on payment success (markOrderPaid),
+  // not here at placement — a pending order isn't confirmed until it's paid.
   return {
     ok: true,
     orderId: order.id,
@@ -555,6 +575,13 @@ export async function markOrderPaid(
       test: order.isTest,
     });
 
+    // Confirmation email to the customer — only now that payment has succeeded.
+    await mailer.send(order.customerEmail, "order_confirmation", {
+      orderNumber: order.orderNumber,
+      total: toRM(toSen(order.total)),
+      items: await orderEmailItems(order.items),
+    });
+
     // Warn (on a separate channel) about any variant this sale just pushed low.
     const { lowStockThreshold } = await getSettings();
     const crossed = crossedLowStock(items, lowStockThreshold);
@@ -597,6 +624,7 @@ export async function updateOrderStatus(
         ? { trackingNumber: opts.trackingNumber }
         : {}),
     },
+    include: { items: true },
   });
 
   await mailer.send(updated.customerEmail, "order_status_change", {
@@ -604,6 +632,7 @@ export async function updateOrderStatus(
     status: next,
     courierName: updated.courierName,
     trackingNumber: updated.trackingNumber,
+    items: await orderEmailItems(updated.items),
   });
 
   return { ok: true };

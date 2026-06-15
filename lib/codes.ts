@@ -1,17 +1,20 @@
+import type { DiscountCode } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { generateCampaignCode, generateCode } from "@/lib/promoCode";
 
-// One 10% first-purchase code per email, reused if already issued.
+// One 10% first-purchase code per email. Returns the code plus `isNew` — true
+// only the first time it's issued — so the welcome email fires exactly once
+// per email, whichever trigger (signup or popup) gets there first.
 export async function issueCodeForEmail(
   email: string,
   source: "popup" | "signup",
-) {
+): Promise<{ record: DiscountCode; isNew: boolean }> {
   const normalized = email.trim().toLowerCase();
   const existing = await prisma.discountCode.findFirst({
     where: { issuedEmail: normalized },
   });
-  if (existing) return existing;
-  return prisma.discountCode.create({
+  if (existing) return { record: existing, isNew: false };
+  const record = await prisma.discountCode.create({
     data: {
       code: generateCode(),
       issuedEmail: normalized,
@@ -19,6 +22,7 @@ export async function issueCodeForEmail(
       source,
     },
   });
+  return { record, isNew: true };
 }
 
 export const MAX_BATCH_CODES = 5000;

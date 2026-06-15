@@ -16,7 +16,7 @@ export default function ForgotPasswordPage() {
     setBusy(true);
     await authClient.requestPasswordReset({
       email,
-      redirectTo: "/auth/sign-in",
+      redirectTo: "/auth/reset-password",
     });
     setSent(true); // always confirm — never reveal whether the email exists
     setBusy(false);
@@ -27,8 +27,7 @@ export default function ForgotPasswordPage() {
       <h1 className="headline text-6xl">Reset Password</h1>
       {sent ? (
         <p className="mt-4 text-sm text-brown">
-          If that email has an account, a reset link is on the way (email is
-          stubbed in dev — check the server console).
+          If that email has an account, a reset link is on the way.
         </p>
       ) : (
         <form onSubmit={submit} className="mt-8 space-y-4">

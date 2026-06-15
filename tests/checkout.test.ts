@@ -163,12 +163,13 @@ describe("placeOrder → markOrderPaid lifecycle", () => {
       (UNIT_PRICE + settings.shippingWest) / 100,
     );
 
+    // Confirmation email is NOT sent at placement — only after payment.
     const confirmation = mailer.sent.find(
       (m) =>
         m.template === "order_confirmation" &&
         m.data.orderNumber === placed.orderNumber,
     );
-    expect(confirmation?.to).toBe(EMAIL);
+    expect(confirmation).toBeUndefined();
   });
 
   test("paying decrements stock and fires the owner alert", async () => {
@@ -198,6 +199,14 @@ describe("placeOrder → markOrderPaid lifecycle", () => {
     expect(
       notifier.alerts.some((a) => a.orderNumber === placed.orderNumber),
     ).toBe(true);
+
+    // Confirmation email goes out now that payment has succeeded.
+    const confirmation = mailer.sent.find(
+      (m) =>
+        m.template === "order_confirmation" &&
+        m.data.orderNumber === placed.orderNumber,
+    );
+    expect(confirmation?.to).toBe(EMAIL);
   });
 
   test("a sale that crosses the low-stock threshold fires a low-stock alert", async () => {

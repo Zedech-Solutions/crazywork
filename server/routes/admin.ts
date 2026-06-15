@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { getSuperadminSession } from "@/lib/admin-guard";
 import { prisma } from "@/lib/db";
 import { storage, deleteObjects } from "@/lib/integrations/storage";
+import { mailer } from "@/lib/integrations/mailer";
 import { payment } from "@/lib/integrations/payment";
 import { removedUrls, contentMediaUrls } from "@/lib/integrations/media-cleanup";
 import {
@@ -140,6 +141,20 @@ admin.get("/low-stock-count", async (c) => {
     where: { stock: { lte: lowStockThreshold } },
   });
   return c.json({ count });
+});
+
+// New orders awaiting fulfillment (paid, not yet processed/shipped) + their
+// total paid, for the sidebar "new orders" badge.
+admin.get("/new-orders-count", async (c) => {
+  const where = { status: "paid" as const, archived: false };
+  const [count, agg] = await Promise.all([
+    prisma.order.count({ where }),
+    prisma.order.aggregate({ where, _sum: { total: true } }),
+  ]);
+  return c.json({
+    count,
+    totalSen: agg._sum.total != null ? toSen(agg._sum.total) : 0,
+  });
 });
 
 // Range-aware time series for the dashboard charts (revenue/profit/orders +
@@ -394,11 +409,18 @@ admin.post("/upload", async (c) => {
 
 // ───────── products ─────────
 admin.get("/products", async (c) => {
-  const products = await prisma.product.findMany({
-    include: { variants: true, images: { orderBy: { sortOrder: "asc" } }, drop: true },
-    orderBy: { createdAt: "desc" },
-  });
-  return c.json({ products });
+  const [products, { lowStockThreshold }] = await Promise.all([
+    prisma.product.findMany({
+      include: {
+        variants: true,
+        images: { orderBy: { sortOrder: "asc" } },
+        drop: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    getSettings(),
+  ]);
+  return c.json({ products, lowStockThreshold });
 });
 
 function productData(body: Record<string, unknown>) {
@@ -797,6 +819,21 @@ admin.get("/orders/export.csv", async (c) => {
 
 admin.patch("/orders/:id/status", async (c) => {
   const body = await c.req.json();
+  if (body.status === "shipped") {
+    const courier =
+      typeof body.courierName === "string" ? body.courierName.trim() : "";
+    const tracking =
+      typeof body.trackingNumber === "string" ? body.trackingNumber.trim() : "";
+    if (!courier || !tracking) {
+      return c.json(
+        {
+          ok: false,
+          message: "Courier and tracking number are required to mark an order shipped.",
+        },
+        422,
+      );
+    }
+  }
   const result = await updateOrderStatus(
     c.req.param("id"),
     body.status as OrderStatus,
@@ -1408,4 +1445,9 @@ admin.post("/secrets/:key/test", async (c) => {
 // Real Stripe connectivity check: pings Stripe with the active mode's secret key.
 admin.post("/integrations/stripe/test", async (c) => {
   return c.json(await payment.verifyConnection());
+});
+
+// Real Resend connectivity check: validates the saved API key.
+admin.post("/integrations/resend/test", async (c) => {
+  return c.json(await mailer.verifyConnection());
 });

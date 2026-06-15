@@ -109,3 +109,48 @@ export class DiscordNotifier implements Notifier {
 }
 
 export const notifier = new DiscordNotifier();
+
+// Posts an unexpected application error to its own Discord channel (separate
+// from orders + low-stock). No-ops silently when that channel isn't configured
+// or under NODE_ENV=test. Never throws — error reporting must not error.
+export async function reportAppError(
+  error: unknown,
+  context: { source: string; path?: string; method?: string } = {
+    source: "app",
+  },
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? error.stack : undefined;
+  const where =
+    [context.method, context.path].filter(Boolean).join(" ") || context.source;
+
+  const webhook = await getSecret("discord_error_webhook_url").catch(() => null);
+  if (!webhook || process.env.NODE_ENV === "test") {
+    console.error(`[error:${context.source}] ${where} — ${message}`);
+    return;
+  }
+
+  const embed = {
+    title: "🔴 Application error",
+    color: 0xdc2626,
+    fields: [
+      { name: "Where", value: `${context.source} · ${where}`.slice(0, 1024) },
+      { name: "Error", value: message.slice(0, 1024) || "—" },
+      ...(stack
+        ? [{ name: "Stack", value: "```\n" + stack.slice(0, 900) + "\n```" }]
+        : []),
+    ],
+    footer: { text: "CRAZYWORK" },
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    await fetch(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ embeds: [embed] }),
+    });
+  } catch (e) {
+    console.error("[error] failed to post error webhook", e);
+  }
+}

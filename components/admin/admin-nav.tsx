@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { adminFetch } from "@/components/admin/api";
+import { formatRM } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
@@ -35,11 +36,19 @@ const SETTINGS = { href: "/admin/settings", label: "Settings" };
 export function AdminNav() {
   const pathname = usePathname();
   const [lowStock, setLowStock] = useState(0);
+  const [newOrders, setNewOrders] = useState(0);
+  const [newOrdersTotal, setNewOrdersTotal] = useState(0);
 
-  // Restock badge — re-checked on navigation so it reflects recent stock edits.
+  // Sidebar badges — re-checked on navigation so they reflect recent activity.
   useEffect(() => {
     adminFetch<{ count: number }>("/low-stock-count")
       .then((r) => setLowStock(r.count))
+      .catch(() => {});
+    adminFetch<{ count: number; totalSen: number }>("/new-orders-count")
+      .then((r) => {
+        setNewOrders(r.count);
+        setNewOrdersTotal(r.totalSen);
+      })
       .catch(() => {});
   }, [pathname]);
 
@@ -65,8 +74,17 @@ export function AdminNav() {
           )}
           <div className="space-y-0.5">
             {group.items.map((item) => {
-              const badge =
-                item.href === "/admin/products" && lowStock > 0 ? lowStock : null;
+              let badge: number | null = null;
+              let badgeTitle = "";
+              let badgeTone = "bg-ember"; // new orders
+              if (item.href === "/admin/products" && lowStock > 0) {
+                badge = lowStock;
+                badgeTitle = `${lowStock} item${lowStock === 1 ? "" : "s"} low on stock`;
+                badgeTone = "bg-red-600"; // low stock — needs restocking
+              } else if (item.href === "/admin/orders" && newOrders > 0) {
+                badge = newOrders;
+                badgeTitle = `${newOrders} new paid order${newOrders === 1 ? "" : "s"} · ${formatRM(newOrdersTotal)} paid`;
+              }
               return (
                 <Link
                   key={item.href}
@@ -79,8 +97,11 @@ export function AdminNav() {
                   <span>{item.label}</span>
                   {badge !== null && (
                     <span
-                      title={`${badge} item${badge === 1 ? "" : "s"} low on stock`}
-                      className="inline-flex min-w-5 items-center justify-center rounded-full bg-ember px-1.5 text-[10px] font-bold leading-5 text-peach"
+                      title={badgeTitle}
+                      className={cn(
+                        "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none text-peach",
+                        badgeTone,
+                      )}
                     >
                       {badge}
                     </span>
