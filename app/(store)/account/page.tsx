@@ -53,9 +53,17 @@ export default function AccountPage() {
         <div className="mt-6 border border-ember p-6">
           <p className="eyebrow text-ember">Your {code.percentage}% first-purchase code</p>
           {code.used ? (
-            <p className="mt-2 text-sm text-brown">
-              Used — that one&apos;s spent. Watch the drops for the next one.
-            </p>
+            <div className="mt-3">
+              <span className="inline-flex select-none items-center gap-3 border border-dashed border-warmgrey px-5 py-2.5 subhead text-2xl text-warmgrey line-through">
+                {code.code}
+              </span>
+              <span className="ml-3 inline-block rounded-full bg-warmgrey/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brown">
+                Used
+              </span>
+              <p className="mt-2 text-sm text-brown">
+                That one&apos;s spent. Watch the drops for the next one.
+              </p>
+            </div>
           ) : (
             <button
               className="mt-3 inline-flex items-center gap-3 border border-dashed border-ember px-5 py-2.5 subhead text-2xl text-ember cursor-pointer"
@@ -66,10 +74,16 @@ export default function AccountPage() {
               }}
             >
               {code.code}
-              <Copy size={16} />
+              <span className="relative inline-flex">
+                <Copy size={16} />
+                {copied && (
+                  <span className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-xs font-medium text-peach shadow-lg">
+                    Copied!
+                  </span>
+                )}
+              </span>
             </button>
           )}
-          {copied && <p className="mt-1.5 text-xs text-brown">Copied.</p>}
           <p className="mt-2 text-xs text-warmgrey">
             Locked to your account · single use · applies at checkout
           </p>

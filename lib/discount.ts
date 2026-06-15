@@ -30,13 +30,21 @@ export interface CartLine {
 export interface PromoCodeInput {
   code: string;
   percentage: number;
+  amountOffSen?: number | null; // fixed discount in sen; overrides percentage
+}
+
+export interface AppliedDiscount {
+  label: string;
+  amount: number;
+  source: "campaign" | "code";
 }
 
 export interface PricingResult {
   subtotal: number;
-  discountAmount: number;
-  discountLabel: string | null;
+  discountAmount: number; // total across all applied discounts
+  discountLabel: string | null; // combined label (e.g. "Member 10% + SAVE20")
   discountSource: "campaign" | "code" | null;
+  discounts: AppliedDiscount[]; // breakdown — list each in the summary
   shippingFee: number;
   freeShippingApplied: boolean;
   total: number;
@@ -115,42 +123,72 @@ export function evaluateCart(input: {
   const itemCount = input.items.reduce((sum, line) => sum + line.quantity, 0);
   const live = input.campaigns.filter((c) => isWithinWindow(c, now));
 
-  // Track 1 — item discounts: best single among campaigns and the code.
-  type Candidate = {
+  // Track 1 — item discounts. Pick the best single campaign; the code is a
+  // separate discount. They stack only when that campaign allows it.
+  let bestCampaign: {
     amount: number;
     label: string;
-    source: "campaign" | "code";
     priority: number;
-  };
-  const candidates: Candidate[] = [];
+    stacks: boolean;
+  } | null = null;
+  let codeDiscount: { amount: number; label: string } | null = null;
+
   if (subtotal > 0) {
     for (const campaign of live) {
       const amount = campaignDiscount(campaign, subtotal, itemCount);
-      if (amount > 0) {
-        candidates.push({
+      if (amount <= 0) continue;
+      if (
+        !bestCampaign ||
+        amount > bestCampaign.amount ||
+        (amount === bestCampaign.amount && campaign.priority > bestCampaign.priority)
+      ) {
+        bestCampaign = {
           amount,
           label: campaign.name,
-          source: "campaign",
           priority: campaign.priority,
-        });
+          stacks: campaign.stacksWithCodes,
+        };
       }
     }
-    if (input.code && input.code.percentage > 0) {
-      candidates.push({
-        amount: Math.round((subtotal * input.code.percentage) / 100),
-        label: input.code.code,
-        source: "code",
-        priority: Number.NEGATIVE_INFINITY,
-      });
+    if (input.code) {
+      // Fixed-amount codes discount a flat sen value; otherwise a percentage.
+      const codeAmount =
+        input.code.amountOffSen != null && input.code.amountOffSen > 0
+          ? Math.min(input.code.amountOffSen, subtotal)
+          : Math.round((subtotal * input.code.percentage) / 100);
+      if (codeAmount > 0) {
+        codeDiscount = { amount: codeAmount, label: input.code.code };
+      }
     }
   }
-  const best = candidates.reduce<Candidate | null>((winner, candidate) => {
-    if (!winner) return candidate;
-    if (candidate.amount > winner.amount) return candidate;
-    if (candidate.amount === winner.amount && candidate.priority > winner.priority)
-      return candidate;
-    return winner;
-  }, null);
+
+  const discounts: AppliedDiscount[] = [];
+  if (bestCampaign && codeDiscount && bestCampaign.stacks) {
+    // Stack both — list each line.
+    discounts.push({
+      label: bestCampaign.label,
+      amount: bestCampaign.amount,
+      source: "campaign",
+    });
+    discounts.push({ label: codeDiscount.label, amount: codeDiscount.amount, source: "code" });
+  } else {
+    // Best-single-wins between the best campaign and the code.
+    const campaignAmt = bestCampaign?.amount ?? 0;
+    const codeAmt = codeDiscount?.amount ?? 0;
+    if (campaignAmt > 0 && campaignAmt >= codeAmt) {
+      discounts.push({ label: bestCampaign!.label, amount: campaignAmt, source: "campaign" });
+    } else if (codeAmt > 0) {
+      discounts.push({ label: codeDiscount!.label, amount: codeAmt, source: "code" });
+    }
+  }
+
+  // Cap the combined discount at the subtotal (shrink the last line if needed).
+  let discountAmount = discounts.reduce((s, d) => s + d.amount, 0);
+  if (discountAmount > subtotal && discounts.length) {
+    const last = discounts[discounts.length - 1];
+    last.amount = Math.max(0, last.amount - (discountAmount - subtotal));
+    discountAmount = subtotal;
+  }
 
   // Track 2 — free shipping waiver.
   const freeShippingApplied = live.some((campaign) => {
@@ -160,12 +198,14 @@ export function evaluateCart(input: {
   });
   const shippingFee = freeShippingApplied ? 0 : input.shippingFee;
 
-  const discountAmount = best?.amount ?? 0;
   return {
     subtotal,
     discountAmount,
-    discountLabel: best?.label ?? null,
-    discountSource: best?.source ?? null,
+    discountLabel: discounts.length
+      ? discounts.map((d) => d.label).join(" + ")
+      : null,
+    discountSource: discounts[0]?.source ?? null,
+    discounts,
     shippingFee,
     freeShippingApplied,
     total: subtotal - discountAmount + shippingFee,

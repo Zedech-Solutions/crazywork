@@ -8,6 +8,7 @@ import {
   type PromoRejection,
 } from "@/lib/promoCode";
 import { getSettings } from "@/lib/settings";
+import { crossedLowStock } from "@/lib/lowStock";
 import { mailer } from "@/lib/integrations/mailer";
 import { notifier } from "@/lib/integrations/notifier";
 
@@ -145,7 +146,11 @@ export async function priceCart(input: {
 
   const campaigns = await prisma.campaign.findMany({ where: { active: true } });
 
-  let appliedCode: { code: string; percentage: number } | null = null;
+  let appliedCode: {
+    code: string;
+    percentage: number;
+    amountOffSen?: number | null;
+  } | null = null;
   let appliedCodeId: string | null = null;
   let lockToUserId: string | null = null;
   if (input.code?.trim()) {
@@ -166,7 +171,11 @@ export async function priceCart(input: {
         reason: validation.reason,
       };
     }
-    appliedCode = { code: record!.code, percentage: record!.percentage };
+    appliedCode = {
+      code: record!.code,
+      percentage: record!.percentage,
+      amountOffSen: record!.amountOffSen,
+    };
     appliedCodeId = record!.id;
     lockToUserId = validation.lockToUserId;
   }
@@ -199,6 +208,8 @@ export interface PlaceOrderInput {
     email: string;
     phone?: string;
     address: string;
+    postcode?: string;
+    city?: string;
     state: string;
   };
   orderNote?: string | null;
@@ -222,23 +233,14 @@ export async function placeOrder(
   if (!priced.ok) return priced;
 
   const { pricing, lines } = priced;
-  const codeConsumed = pricing.discountSource === "code";
+  // The code is consumed whenever it contributed a discount — including when it
+  // stacks on top of a campaign (so discountSource may be "campaign").
+  const codeConsumed = pricing.discounts.some((d) => d.source === "code");
 
-  const order = await prisma.$transaction(async (tx) => {
-    if (codeConsumed && priced.appliedCodeId) {
-      // race-safe single-use: only flips if still unused
-      const consumed = await tx.discountCode.updateMany({
-        where: { id: priced.appliedCodeId, used: false },
-        data: {
-          used: true,
-          ...(priced.lockToUserId ? { lockedUserId: priced.lockToUserId } : {}),
-        },
-      });
-      if (consumed.count === 0) {
-        throw new Error("code_already_used");
-      }
-    }
-    return tx.order.create({
+  // The code is only *recorded* on the order here — it isn't consumed until the
+  // order is actually paid (markOrderPaid), so a failed/abandoned checkout never
+  // burns a single-use code.
+  const order = await prisma.order.create({
       data: {
         orderNumber: generateOrderNumber(),
         userId: input.userId ?? null,
@@ -246,6 +248,8 @@ export async function placeOrder(
         customerEmail: input.customer.email.trim().toLowerCase(),
         customerPhone: input.customer.phone ?? null,
         shippingAddress: input.customer.address,
+        shippingPostcode: input.customer.postcode ?? null,
+        shippingCity: input.customer.city ?? null,
         shippingState: input.customer.state,
         shippingZone: input.shippingZone,
         shippingFee: toRM(pricing.shippingFee),
@@ -268,7 +272,6 @@ export async function placeOrder(
         },
       },
     });
-  });
 
   await mailer.send(order.customerEmail, "order_confirmation", {
     orderNumber: order.orderNumber,
@@ -476,6 +479,18 @@ export async function markOrderPaid(
       return { ok: order.status === "paid", alreadyPaid: true };
     }
 
+    // Consume the discount code now (race-safe single-use) — only on a real
+    // payment, so abandoned/failed checkouts don't burn it.
+    if (order.discountCodeId) {
+      await tx.discountCode.updateMany({
+        where: { id: order.discountCodeId, used: false },
+        data: {
+          used: true,
+          ...(order.userId ? { lockedUserId: order.userId } : {}),
+        },
+      });
+    }
+
     for (const item of order.items) {
       const variant = await tx.productVariant.findUnique({
         where: {
@@ -539,6 +554,18 @@ export async function markOrderPaid(
       items,
       test: order.isTest,
     });
+
+    // Warn (on a separate channel) about any variant this sale just pushed low.
+    const { lowStockThreshold } = await getSettings();
+    const crossed = crossedLowStock(items, lowStockThreshold);
+    if (crossed.length) {
+      await notifier.lowStock({
+        orderNumber: order.orderNumber,
+        threshold: lowStockThreshold,
+        items: crossed,
+        test: order.isTest,
+      });
+    }
   }
   return { ok: result.ok, alreadyPaid: "alreadyPaid" in result ? result.alreadyPaid : undefined };
 }

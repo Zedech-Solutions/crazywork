@@ -7,6 +7,7 @@ import { adminFetch, uploadFile } from "@/components/admin/api";
 import { useConfirm } from "@/components/admin/confirm";
 import { SizeGuideEditor } from "@/components/admin/size-guide-editor";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Badge, Input, Label, Textarea } from "@/components/ui/field";
@@ -72,6 +73,8 @@ interface ApiProduct {
   sizeGuide: SizeGuideTable | null;
 }
 
+const PAGE_SIZE = 20;
+
 const EMPTY: ProductForm = {
   slug: "",
   name: "",
@@ -96,7 +99,16 @@ export default function AdminProductsPage() {
   const [editing, setEditing] = useState<ProductForm | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(1);
   const confirm = useConfirm();
+
+  const pageCount = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
+  const pageProducts = products.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Keep the current page in range when the list shrinks (e.g. after a delete).
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   const reload = useCallback(() => {
     adminFetch<{ products: ApiProduct[] }>("/products")
@@ -217,11 +229,15 @@ export default function AdminProductsPage() {
   if (editing) {
     return (
       <div className="max-w-3xl">
-        <div className="flex items-center justify-between">
-          <h1 className="headline text-5xl">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="headline text-3xl sm:text-5xl">
             {editing.id ? "Edit Product" : "New Product"}
           </h1>
-          <Button variant="ghost" onClick={() => setEditing(null)}>
+          <Button
+            variant="ghost"
+            className="shrink-0"
+            onClick={() => setEditing(null)}
+          >
             <X size={16} /> Close
           </Button>
         </div>
@@ -309,11 +325,12 @@ export default function AdminProductsPage() {
 
           {/* VARIANTS */}
           <section className="border-t border-warmgrey pt-5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="subhead text-xl">Variants (size × colour × stock)</h2>
               <Button
                 size="sm"
                 variant="outline"
+                className="shrink-0"
                 onClick={() =>
                   set("variants", [
                     ...editing.variants,
@@ -324,8 +341,8 @@ export default function AdminProductsPage() {
                 <Plus size={14} /> Variant
               </Button>
             </div>
-            <div className="mt-3 space-y-2">
-              <div className="grid grid-cols-[1fr_1fr_80px_1fr_100px_32px] gap-2 eyebrow text-brown">
+            <div className="mt-3 space-y-3 sm:space-y-2">
+              <div className="hidden gap-2 eyebrow text-brown sm:grid sm:grid-cols-[1fr_1fr_80px_1fr_100px_32px]">
                 <span>Size</span>
                 <span>Colour</span>
                 <span>Stock</span>
@@ -336,9 +353,10 @@ export default function AdminProductsPage() {
               {editing.variants.map((variant, i) => (
                 <div
                   key={i}
-                  className="grid grid-cols-[1fr_1fr_80px_1fr_100px_32px] items-center gap-2"
+                  className="grid grid-cols-2 items-center gap-2 rounded-lg border border-warmgrey/40 bg-sand/20 p-2 sm:grid-cols-[1fr_1fr_80px_1fr_100px_32px] sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0"
                 >
                   <Input
+                    placeholder="Size"
                     value={variant.size}
                     onChange={(e) =>
                       set(
@@ -350,6 +368,7 @@ export default function AdminProductsPage() {
                     }
                   />
                   <Input
+                    placeholder="Colour"
                     value={variant.colour}
                     onChange={(e) =>
                       set(
@@ -363,6 +382,7 @@ export default function AdminProductsPage() {
                   <Input
                     type="number"
                     min="0"
+                    placeholder="Stock"
                     value={variant.stock}
                     onChange={(e) =>
                       set(
@@ -374,6 +394,7 @@ export default function AdminProductsPage() {
                     }
                   />
                   <Input
+                    placeholder="SKU"
                     value={variant.sku}
                     onChange={(e) =>
                       set(
@@ -522,14 +543,19 @@ export default function AdminProductsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="headline text-5xl">Products</h1>
-        <Button variant="accent" onClick={() => startEdit()}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="headline text-4xl sm:text-5xl">Products</h1>
+        <Button
+          variant="accent"
+          className="w-full sm:w-auto"
+          onClick={() => startEdit()}
+        >
           <Plus size={16} /> New product
         </Button>
       </div>
       {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
-      <table className="mt-8 w-full border-collapse text-sm">
+      <div className="mt-8 overflow-x-auto">
+      <table className="w-full min-w-[36rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-ink text-left">
             {["Product", "Price", "Stock", "Drop", "Status", ""].map((h, i) => (
@@ -540,7 +566,7 @@ export default function AdminProductsPage() {
           </tr>
         </thead>
         <tbody>
-          {products.map((p) => {
+          {pageProducts.map((p) => {
             const stock = p.variants.reduce((s, v) => s + v.stock, 0);
             return (
               <tr
@@ -591,9 +617,18 @@ export default function AdminProductsPage() {
           })}
         </tbody>
       </table>
+      </div>
       {products.length === 0 && (
         <p className="mt-6 text-sm text-brown">No products yet.</p>
       )}
+      <Pagination
+        className="mt-6"
+        page={page}
+        pageCount={pageCount}
+        total={products.length}
+        pageSize={PAGE_SIZE}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

@@ -33,6 +33,12 @@ import {
 } from "@/lib/content";
 import { fetchInstagramThumbnail } from "@/lib/instagram";
 import {
+  deleteCampaignBatch,
+  generateCampaignBatch,
+  MAX_BATCH_CODES,
+  updateCampaignBatch,
+} from "@/lib/codes";
+import {
   getDefaultSizeGuide,
   isValidSizeGuide,
   setDefaultSizeGuide,
@@ -601,6 +607,25 @@ admin.patch("/orders/:id/archive", async (c) => {
   return c.json({ ok: true });
 });
 
+// Hard delete — irreversible. Only allowed once an order is archived, so it
+// can't be triggered straight from the active list. Items cascade.
+admin.delete("/orders/:id", async (c) => {
+  const id = c.req.param("id");
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { archived: true },
+  });
+  if (!order) return c.json({ ok: false, message: "Order not found." }, 404);
+  if (!order.archived) {
+    return c.json(
+      { ok: false, message: "Archive the order before deleting it." },
+      400,
+    );
+  }
+  await prisma.order.delete({ where: { id } });
+  return c.json({ ok: true });
+});
+
 // Manual / offline order creation (walk-in sales). Deducts stock when the chosen
 // status implies the sale is done.
 admin.post("/orders", async (c) => {
@@ -790,9 +815,28 @@ admin.patch("/orders/:id/status", async (c) => {
 // ───────── campaigns ─────────
 admin.get("/campaigns", async (c) => {
   const campaigns = await prisma.campaign.findMany({
-    orderBy: [{ active: "desc" }, { priority: "desc" }],
+    orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
   });
   return c.json({ campaigns });
+});
+
+// Reorder via drag-and-drop: ids are top-to-bottom, top wins ties. Assign
+// descending priorities so the on-screen order matches the saved order.
+admin.post("/campaigns/reorder", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { ids?: unknown };
+  const ids = Array.isArray(body.ids)
+    ? body.ids.filter((x): x is string => typeof x === "string")
+    : [];
+  if (!ids.length) {
+    return c.json({ ok: false, message: "No order provided." }, 400);
+  }
+  const n = ids.length;
+  await prisma.$transaction(
+    ids.map((id, i) =>
+      prisma.campaign.update({ where: { id }, data: { priority: n - i } }),
+    ),
+  );
+  return c.json({ ok: true });
 });
 
 function campaignData(body: Record<string, unknown>) {
@@ -1064,6 +1108,209 @@ admin.patch("/faqs/:id", async (c) => {
 admin.delete("/faqs/:id", async (c) => {
   await prisma.faq.delete({ where: { id: c.req.param("id") } });
   return c.json({ ok: true });
+});
+
+// ───────── promo code batches (campaign / influencer codes) ─────────
+function csvCell(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
+admin.post("/code-batches", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const label = typeof body.label === "string" ? body.label.trim() : "";
+  const prefix = typeof body.prefix === "string" ? body.prefix.trim() : "";
+  const count = Math.floor(Number(body.count));
+  const discountType = body.discountType === "fixed" ? "fixed" : "percent";
+  const value = Number(body.value);
+  const expiresAt =
+    typeof body.expiresAt === "string" && body.expiresAt
+      ? new Date(body.expiresAt)
+      : null;
+
+  if (!label) return c.json({ ok: false, message: "Campaign label is required." }, 400);
+  if (!prefix.replace(/[^a-z0-9]/gi, "")) {
+    return c.json({ ok: false, message: "Prefix needs letters or numbers." }, 400);
+  }
+  if (!Number.isFinite(count) || count < 1 || count > MAX_BATCH_CODES) {
+    return c.json({ ok: false, message: `Generate 1–${MAX_BATCH_CODES} codes.` }, 400);
+  }
+  if (!Number.isFinite(value) || value <= 0) {
+    return c.json({ ok: false, message: "Enter a discount value." }, 400);
+  }
+  if (discountType === "percent" && value > 100) {
+    return c.json({ ok: false, message: "Percentage can't exceed 100." }, 400);
+  }
+
+  const created = await generateCampaignBatch({
+    label,
+    prefix,
+    count,
+    percentage: discountType === "percent" ? Math.round(value) : 0,
+    amountOffSen: discountType === "fixed" ? Math.round(value * 100) : null,
+    expiresAt,
+  });
+  return c.json({ ok: true, created });
+});
+
+admin.get("/code-batches", async (c) => {
+  const where = { source: "campaign" as const, batchLabel: { not: null } };
+  const [all, used] = await Promise.all([
+    prisma.discountCode.groupBy({
+      by: ["batchLabel"],
+      where,
+      _count: { _all: true },
+      _min: { createdAt: true, percentage: true, amountOffSen: true, expiresAt: true },
+    }),
+    prisma.discountCode.groupBy({
+      by: ["batchLabel"],
+      where: { ...where, used: true },
+      _count: { _all: true },
+    }),
+  ]);
+  const usedMap = new Map(used.map((g) => [g.batchLabel, g._count._all]));
+  const batches = all
+    .map((g) => ({
+      label: g.batchLabel,
+      total: g._count._all,
+      used: usedMap.get(g.batchLabel) ?? 0,
+      percentage: g._min.percentage ?? 0,
+      amountOffSen: g._min.amountOffSen,
+      expiresAt: g._min.expiresAt,
+      createdAt: g._min.createdAt,
+    }))
+    .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  return c.json({ batches });
+});
+
+admin.get("/code-batches/:label", async (c) => {
+  const label = c.req.param("label");
+  const paid = new Set<string>(PAID_STATUSES);
+  const codes = await prisma.discountCode.findMany({
+    where: { source: "campaign", batchLabel: label },
+    include: {
+      orders: {
+        select: {
+          orderNumber: true,
+          customerName: true,
+          customerEmail: true,
+          status: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return c.json({
+    label,
+    codes: codes.map((dc) => {
+      const order = dc.orders.find((o) => paid.has(o.status)) ?? null;
+      return {
+        code: dc.code,
+        used: dc.used,
+        percentage: dc.percentage,
+        amountOffSen: dc.amountOffSen,
+        redeemedBy: order
+          ? {
+              orderNumber: order.orderNumber,
+              customer: order.customerName,
+              email: order.customerEmail,
+            }
+          : null,
+      };
+    }),
+  });
+});
+
+admin.patch("/code-batches/:label", async (c) => {
+  const label = c.req.param("label");
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+
+  const newLabel = typeof body.label === "string" ? body.label.trim() : undefined;
+  const discountType =
+    body.discountType === "fixed"
+      ? "fixed"
+      : body.discountType === "percent"
+        ? "percent"
+        : undefined;
+  const value = body.value == null ? undefined : Number(body.value);
+  const expiresAt =
+    body.expiresAt === undefined
+      ? undefined
+      : typeof body.expiresAt === "string" && body.expiresAt
+        ? new Date(body.expiresAt)
+        : null;
+
+  if (newLabel !== undefined && !newLabel) {
+    return c.json({ ok: false, message: "Campaign label is required." }, 400);
+  }
+
+  let percentage: number | undefined;
+  let amountOffSen: number | null | undefined;
+  if (discountType !== undefined) {
+    if (!Number.isFinite(value) || (value as number) <= 0) {
+      return c.json({ ok: false, message: "Enter a discount value." }, 400);
+    }
+    if (discountType === "percent") {
+      if ((value as number) > 100) {
+        return c.json({ ok: false, message: "Percentage can't exceed 100." }, 400);
+      }
+      percentage = Math.round(value as number);
+      amountOffSen = null;
+    } else {
+      percentage = 0;
+      amountOffSen = Math.round((value as number) * 100);
+    }
+  }
+
+  const updated = await updateCampaignBatch({
+    label,
+    newLabel,
+    percentage,
+    amountOffSen,
+    expiresAt,
+  });
+  return c.json({ ok: true, updated });
+});
+
+admin.delete("/code-batches/:label", async (c) => {
+  const label = c.req.param("label");
+  const deleted = await deleteCampaignBatch(label);
+  return c.json({ ok: true, deleted });
+});
+
+admin.get("/code-batches/:label/export.csv", async (c) => {
+  const label = c.req.param("label");
+  const paid = new Set<string>(PAID_STATUSES);
+  const codes = await prisma.discountCode.findMany({
+    where: { source: "campaign", batchLabel: label },
+    include: {
+      orders: {
+        select: { orderNumber: true, customerEmail: true, status: true },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const header = "Code,Discount,Status,Redeemed by,Order";
+  const rows = codes.map((dc) => {
+    const discount = dc.amountOffSen
+      ? `RM${(dc.amountOffSen / 100).toFixed(2)}`
+      : `${dc.percentage}%`;
+    const order = dc.orders.find((o) => paid.has(o.status)) ?? null;
+    return [
+      dc.code,
+      discount,
+      dc.used ? "Used" : "Unused",
+      order?.customerEmail ?? "",
+      order?.orderNumber ?? "",
+    ]
+      .map(csvCell)
+      .join(",");
+  });
+  const csv = [header, ...rows].join("\n") + "\n";
+  const safe = label.replace(/[^a-z0-9]+/gi, "_");
+  return c.body(csv, 200, {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename=${safe}-codes.csv`,
+  });
 });
 
 // ───────── settings ─────────

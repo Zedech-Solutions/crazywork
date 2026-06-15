@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Info } from "lucide-react";
 import { adminFetch } from "@/components/admin/api";
+import { ChangePasswordCard } from "@/components/admin/change-password";
 import { SizeGuideEditor } from "@/components/admin/size-guide-editor";
 import { Button } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
@@ -12,7 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Badge, Input, Label, Textarea } from "@/components/ui/field";
+import { Badge, Input, Label } from "@/components/ui/field";
 import type { Settings } from "@/lib/settings";
 import { DEFAULT_SIZE_GUIDE, type SizeGuideTable } from "@/lib/size-guide";
 
@@ -31,8 +32,24 @@ const SECRET_LABELS: Record<string, string> = {
   stripe_live_webhook_secret: "Webhook secret",
   resend_api_key: "API key",
   resend_from_email: "From email",
-  discord_webhook_url: "Webhook URL",
+  discord_webhook_url: "Orders webhook",
+  discord_lowstock_webhook_url: "Low-stock webhook",
 };
+
+// The drop countdown is stored as an unambiguous ISO instant in Malaysia time
+// (+08:00). A <input type="datetime-local"> edits wall-clock digits with no
+// offset, so we strip the offset for the picker and re-attach it on save.
+const MYT_OFFSET = "+08:00";
+
+function isoToLocalInput(iso: string): string {
+  // "2026-07-01T00:00:00+08:00" → "2026-07-01T00:00"
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(iso) ? iso.slice(0, 16) : "";
+}
+
+function localInputToIso(local: string): string {
+  // "2026-07-01T00:00" → "2026-07-01T00:00:00+08:00"
+  return local ? `${local}:00${MYT_OFFSET}` : "";
+}
 
 type StripeMode = "test" | "live";
 
@@ -133,9 +150,9 @@ const PROVIDERS: Provider[] = [
   {
     id: "discord",
     name: "Discord",
-    blurb: "Owner alert on every paid order.",
+    blurb: "Order alerts + low-stock warnings, each to its own channel.",
     iconSrc: "/images/integrations/discord.png",
-    keys: ["discord_webhook_url"],
+    keys: ["discord_webhook_url", "discord_lowstock_webhook_url"],
   },
 ];
 
@@ -562,12 +579,25 @@ export default function AdminSettingsPage() {
               />
             </div>
             <div>
-              <Label>Drop countdown until (ISO date, optional)</Label>
-              <Input
-                placeholder="2026-07-01T00:00:00+08:00"
-                value={settings.dropCountdownUntil}
-                onChange={(e) => set("dropCountdownUntil", e.target.value)}
-              />
+              <Label>Drop countdown until (optional · MYT)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="datetime-local"
+                  value={isoToLocalInput(settings.dropCountdownUntil)}
+                  onChange={(e) =>
+                    set("dropCountdownUntil", localInputToIso(e.target.value))
+                  }
+                />
+                {settings.dropCountdownUntil && (
+                  <button
+                    type="button"
+                    onClick={() => set("dropCountdownUntil", "")}
+                    className="shrink-0 text-xs text-brown hover:text-ember"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -581,22 +611,6 @@ export default function AdminSettingsPage() {
               When on, orders paid through Stripe test keys appear in the Orders
               list (tagged TEST) and are also sent to the Discord webhook.
             </p>
-          </div>
-
-          <div className="mt-6 rounded-xl border border-warmgrey/60 bg-sand/40 p-4">
-            <CheckboxField
-              label="Pre-checkout upsell popup enabled"
-              checked={settings.preCheckoutUpsellEnabled}
-              onCheckedChange={(v) => set("preCheckoutUpsellEnabled", v)}
-            />
-            <div className="mt-3">
-              <Label>Upsell template — slots: {"{n}"} and {"{percent}"}</Label>
-              <Textarea
-                className="min-h-16"
-                value={settings.preCheckoutUpsellTemplate}
-                onChange={(e) => set("preCheckoutUpsellTemplate", e.target.value)}
-              />
-            </div>
           </div>
 
           <div className="mt-6 flex items-center gap-3">
@@ -626,6 +640,15 @@ export default function AdminSettingsPage() {
             <span className="text-sm text-emerald-700">Saved ✓</span>
           )}
         </div>
+      </section>
+
+      {/* ADMIN ACCOUNT */}
+      <section className="mt-12 border-t border-warmgrey pt-8">
+        <h2 className="subhead text-2xl">Admin account</h2>
+        <p className="mt-1 text-sm text-brown">
+          Change the password you use to sign in to this panel.
+        </p>
+        <ChangePasswordCard className="mt-4" />
       </section>
     </div>
   );

@@ -190,7 +190,7 @@ export function NewOrderDialog({ onCreated }: { onCreated: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="accent" size="sm">
+        <Button variant="accent" size="sm" className="w-full sm:w-auto">
           <Plus size={14} /> New order
         </Button>
       </DialogTrigger>

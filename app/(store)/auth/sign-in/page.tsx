@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
+import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { authClient } from "@/lib/auth-client";
 
 export default function SignInPage() {
@@ -46,13 +47,7 @@ export default function SignInPage() {
           {busy ? "Signing in…" : "Sign in"}
         </Button>
       </form>
-      <Button
-        variant="outline"
-        className="mt-3 w-full"
-        onClick={() => authClient.signIn.social({ provider: "google", callbackURL: "/account" })}
-      >
-        Continue with Google
-      </Button>
+      <GoogleAuthButton callbackURL="/account" />
       <div className="mt-6 flex justify-between text-xs text-brown">
         <Link href="/auth/forgot-password" className="hover:text-ember">
           Forgot password?

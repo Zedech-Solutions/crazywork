@@ -39,7 +39,7 @@ function Hotspot({
     <button
       type="button"
       onClick={() => onEdit(region)}
-      className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-ember px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-peach shadow-lg transition-transform hover:scale-105"
+      className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-ink/85 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-peach shadow-lg ring-1 ring-white/20 transition-transform hover:scale-105"
     >
       <Pencil size={11} /> {label}
     </button>

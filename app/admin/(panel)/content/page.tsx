@@ -302,9 +302,11 @@ export default function AdminContentPage() {
 
     return (
       <div className="max-w-3xl">
-        <div className="flex items-center justify-between">
-          <h1 className="headline text-5xl">{form.id ? "Edit Post" : "New Post"}</h1>
-          <Button variant="ghost" onClick={() => setForm(null)}>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="headline text-4xl sm:text-5xl">
+            {form.id ? "Edit Post" : "New Post"}
+          </h1>
+          <Button variant="ghost" className="shrink-0" onClick={() => setForm(null)}>
             <X size={16} /> Close
           </Button>
         </div>
@@ -495,9 +497,13 @@ export default function AdminContentPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="headline text-5xl">Content</h1>
-        <Button variant="accent" onClick={() => startEdit()}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="headline text-4xl sm:text-5xl">Content</h1>
+        <Button
+          variant="accent"
+          className="w-full sm:w-auto"
+          onClick={() => startEdit()}
+        >
           <Plus size={16} /> New post
         </Button>
       </div>

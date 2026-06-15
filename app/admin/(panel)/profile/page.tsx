@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ChangePasswordCard } from "@/components/admin/change-password";
 import { Input, Label } from "@/components/ui/field";
 import { authClient, useSession } from "@/lib/auth-client";
 
@@ -9,12 +10,6 @@ export default function AdminProfilePage() {
   const { data: session } = useSession();
   const [name, setName] = useState("");
   const [nameSaved, setNameSaved] = useState(false);
-
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (session?.user.name) setName(session.user.name);
@@ -26,42 +21,6 @@ export default function AdminProfilePage() {
     await authClient.updateUser({ name });
     setNameSaved(true);
     setTimeout(() => setNameSaved(false), 2500);
-  }
-
-  async function changePassword(e: React.FormEvent) {
-    e.preventDefault();
-    setPwMsg(null);
-    if (next.length < 8) {
-      setPwMsg({ ok: false, text: "New password must be at least 8 characters." });
-      return;
-    }
-    if (next !== confirm) {
-      setPwMsg({ ok: false, text: "New passwords don't match." });
-      return;
-    }
-    setBusy(true);
-    try {
-      const { error } = await authClient.changePassword({
-        currentPassword: current,
-        newPassword: next,
-        revokeOtherSessions: true,
-      });
-      if (error) {
-        setPwMsg({
-          ok: false,
-          text: error.message ?? "Current password is incorrect.",
-        });
-      } else {
-        setPwMsg({ ok: true, text: "Password updated. Other sessions signed out." });
-        setCurrent("");
-        setNext("");
-        setConfirm("");
-      }
-    } catch {
-      setPwMsg({ ok: false, text: "Something went wrong. Try again." });
-    } finally {
-      setBusy(false);
-    }
   }
 
   if (!session) return <p className="text-sm text-brown">Loading…</p>;
@@ -103,55 +62,7 @@ export default function AdminProfilePage() {
       </section>
 
       {/* PASSWORD */}
-      <section className="mt-6 rounded-2xl border border-warmgrey/60 bg-sand/40 p-6">
-        <h2 className="subhead text-xl">Change password</h2>
-        <form onSubmit={changePassword} className="mt-4 space-y-4">
-          <div>
-            <Label htmlFor="pf-current">Current password</Label>
-            <Input
-              id="pf-current"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={current}
-              onChange={(e) => setCurrent(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="pf-new">New password</Label>
-            <Input
-              id="pf-new"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              value={next}
-              onChange={(e) => setNext(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="pf-confirm">Confirm new password</Label>
-            <Input
-              id="pf-confirm"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-            />
-          </div>
-          {pwMsg && (
-            <p
-              className={`text-xs ${pwMsg.ok ? "text-emerald-700" : "text-red-700"}`}
-            >
-              {pwMsg.text}
-            </p>
-          )}
-          <Button type="submit" variant="accent" disabled={busy}>
-            {busy ? "Updating…" : "Update password"}
-          </Button>
-        </form>
-      </section>
+      <ChangePasswordCard />
     </div>
   );
 }

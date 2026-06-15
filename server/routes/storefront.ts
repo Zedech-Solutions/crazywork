@@ -58,7 +58,9 @@ storefront.post("/checkout/quote", async (c) => {
         : (session?.user.email ?? ""),
     userId: session?.user.id ?? null,
   });
-  return c.json(result, result.ok ? 200 : 422);
+  // The quote is a live price preview — an invalid code / soft pricing issue is
+  // a normal outcome the client renders, not an HTTP error (avoids console 422s).
+  return c.json(result, 200);
 });
 
 // Pre-checkout upsell: fired on Checkout click, never blocks.
@@ -93,6 +95,7 @@ storefront.post("/checkout/upsell", async (c) => {
   return c.json({
     show: true,
     message: renderUpsellMessage(settings.preCheckoutUpsellTemplate, gap),
+    percent: gap.percent,
   });
 });
 
@@ -108,6 +111,10 @@ storefront.post("/checkout", async (c) => {
     !/.+@.+\..+/.test(customer.email) ||
     typeof customer.address !== "string" ||
     !customer.address.trim() ||
+    typeof customer.postcode !== "string" ||
+    !customer.postcode.trim() ||
+    typeof customer.city !== "string" ||
+    !customer.city.trim() ||
     typeof customer.state !== "string" ||
     !customer.state.trim()
   ) {
@@ -123,6 +130,8 @@ storefront.post("/checkout", async (c) => {
       email: customer.email.trim(),
       phone: typeof customer.phone === "string" ? customer.phone.trim() : undefined,
       address: customer.address.trim(),
+      postcode: customer.postcode.trim(),
+      city: customer.city.trim(),
       state: customer.state.trim(),
     },
     orderNote: typeof body.orderNote === "string" ? body.orderNote : null,
@@ -181,8 +190,16 @@ storefront.post("/subscribe", async (c) => {
     update: {},
   });
   const code = await issueCodeForEmail(email, "popup");
-  await mailer.send(email, "welcome_code", { code: code.code });
-  return c.json({ ok: true, code: code.code, percentage: code.percentage });
+  // Only (re)send the code email if it's still redeemable.
+  if (!code.used) {
+    await mailer.send(email, "welcome_code", { code: code.code });
+  }
+  return c.json({
+    ok: true,
+    code: code.code,
+    percentage: code.percentage,
+    used: code.used,
+  });
 });
 
 // Guest order lookup: order number + email must both match.

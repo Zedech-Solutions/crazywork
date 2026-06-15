@@ -12,6 +12,7 @@ export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState<string | null>(null);
+  const [used, setUsed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -41,6 +42,7 @@ export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
         setError(body.message ?? "Something went wrong.");
       } else {
         setCode(body.code);
+        setUsed(Boolean(body.used));
       }
     } catch {
       setError("Something went wrong.");
@@ -52,7 +54,26 @@ export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={dismiss}>
       <DialogContent aria-describedby={undefined}>
-        {code ? (
+        {code && used ? (
+          <div className="text-center">
+            <DialogTitle className="headline text-4xl">
+              Already used.
+            </DialogTitle>
+            <p className="mt-3 text-sm text-brown">
+              Your first-purchase code{" "}
+              <span className="font-bold text-ink">{code}</span> has already been
+              redeemed — it&apos;s one-time only. Watch the drops for the next
+              offer.
+            </p>
+            <Button
+              variant="accent"
+              className="mt-5"
+              onClick={() => dismiss(false)}
+            >
+              Got it
+            </Button>
+          </div>
+        ) : code ? (
           <div className="text-center">
             <DialogTitle className="headline text-4xl">You&apos;re in.</DialogTitle>
             <p className="mt-3 text-sm text-brown">

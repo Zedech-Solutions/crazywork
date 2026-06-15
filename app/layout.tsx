@@ -33,12 +33,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${barlow.variable} ${barlowCondensed.variable} antialiased`}
-      >
-        {children}
-      </body>
+    <html
+      lang="en"
+      className={`${barlow.variable} ${barlowCondensed.variable}`}
+    >
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

@@ -91,7 +91,7 @@ export const DEFAULT_HOME_CONTENT: HomeContent = {
   heroHeadline: "We Put In\nThe *Crazy* Work",
   heroSub:
     "Premium gym and lifestyle clothing for those who give their absolute best. Identity. Mindset. Lifestyle.",
-  heroImage: "/images/manus/hero.png",
+  heroImage: "/images/hero.svg",
   heroCtaPrimary: { label: "Shop Now →", href: "/shop" },
   heroCtaSecondary: { label: "● Latest Drop", href: "/drops" },
   marquee: [
@@ -108,7 +108,7 @@ export const DEFAULT_HOME_CONTENT: HomeContent = {
     title: "We don't wait to be ready.",
     linkLabel: "Read it →",
     href: "/mindset",
-    image: "/images/manus/mindset-bg.webp",
+    image: "/images/mindset.svg",
   },
   storyTile: {
     eyebrow: "Our Story",
@@ -170,7 +170,7 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
   headerTitle: "The Mindset",
   headerSub:
     "Fitness tips, motivation, transformation stories. Content that fuels your grind and builds the identity behind the clothing.",
-  headerImage: "/images/manus/mindset-bg.webp",
+  headerImage: "/images/mindset.svg",
   articles: [
     {
       tag: "Training",
@@ -178,7 +178,7 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       excerpt:
         "It's not talent. It's not genetics. It's the habits you build in the dark, when no one is watching, when the motivation is gone.",
       readTime: "4 min read",
-      image: "/images/manus/lifestyle-1.webp",
+      image: "/images/story.svg",
       featured: true,
     },
     {
@@ -187,7 +187,7 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       excerpt:
         "Motivation fades. Identity is permanent. Build the version of yourself that never quits — and everything else follows.",
       readTime: "6 min read",
-      image: "/images/manus/hero-main.webp",
+      image: "/images/hero.svg",
       featured: false,
     },
     {
@@ -196,7 +196,7 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       excerpt:
         "The most important transformation isn't physical. It's the decision to never stop showing up, no matter what.",
       readTime: "8 min read",
-      image: "/images/manus/mindset-bg.webp",
+      image: "/images/mindset.svg",
       featured: false,
     },
     {
@@ -205,7 +205,7 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       excerpt:
         "Cut through the noise. Here's what the science actually says about fueling your training for maximum results.",
       readTime: "2 min read",
-      image: "/images/manus/cw-3.jpg",
+      image: "/images/story.svg",
       featured: false,
     },
     {
@@ -214,7 +214,7 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       excerpt:
         "You don't grow in the gym. You grow when you recover. Here's how to maximize every hour outside of training.",
       readTime: "7 min read",
-      image: "/images/manus/lifestyle-1.webp",
+      image: "/images/story.svg",
       featured: false,
     },
     {
@@ -223,7 +223,7 @@ export const DEFAULT_MINDSET_CONTENT: MindsetContent = {
       excerpt:
         "There's something different about the 5 AM crowd. They've made a decision that most people never will.",
       readTime: "4 min read",
-      image: "/images/manus/hero-main.webp",
+      image: "/images/hero.svg",
       featured: false,
     },
   ],

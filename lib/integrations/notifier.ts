@@ -1,6 +1,6 @@
 import { getSecret } from "@/lib/secrets";
 import { getSetting } from "@/lib/settings";
-import type { Notifier, OrderAlert } from "./types";
+import type { LowStockAlert, Notifier, OrderAlert } from "./types";
 
 const rm = (sen: number) => (sen / 100).toFixed(2);
 
@@ -15,6 +15,7 @@ function itemLine(i: OrderAlert["items"][number]): string {
 // has enabled "show test orders" in Settings, and always carry a [TEST] tag.
 export class DiscordNotifier implements Notifier {
   readonly alerts: OrderAlert[] = [];
+  readonly lowStockAlerts: LowStockAlert[] = [];
 
   async orderPlaced(order: OrderAlert): Promise<void> {
     this.alerts.push(order);
@@ -55,6 +56,54 @@ export class DiscordNotifier implements Notifier {
       });
     } catch (e) {
       console.error("[notify] discord webhook failed", e);
+    }
+  }
+
+  // Posts a low-stock warning to its own webhook (a separate channel from
+  // orders). No-ops silently when that channel hasn't been configured.
+  async lowStock(alert: LowStockAlert): Promise<void> {
+    this.lowStockAlerts.push(alert);
+
+    if (alert.test && !(await getSetting("showTestOrders"))) return;
+
+    const webhook = await getSecret("discord_lowstock_webhook_url");
+    if (!webhook || process.env.NODE_ENV === "test") {
+      console.log(
+        `[notify] low stock after ${alert.orderNumber}${
+          webhook ? "" : " (low-stock discord not configured)"
+        }`,
+      );
+      return;
+    }
+
+    const embed = {
+      title: `${alert.test ? "🧪 [TEST] " : "⚠️ "}Low stock`,
+      color: 0xdc2626, // red
+      description: `After order **${alert.orderNumber}** · threshold ${alert.threshold} or fewer`,
+      fields: [
+        {
+          name: "Running low",
+          value:
+            alert.items
+              .map(
+                (i) =>
+                  `${i.productName} (${i.size}/${i.colour}) — **${i.stockLeft} left**`,
+              )
+              .join("\n") || "—",
+        },
+      ],
+      footer: { text: "CRAZYWORK" },
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      await fetch(webhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ embeds: [embed] }),
+      });
+    } catch (e) {
+      console.error("[notify] low-stock discord webhook failed", e);
     }
   }
 }

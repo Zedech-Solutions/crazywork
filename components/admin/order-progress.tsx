@@ -53,7 +53,7 @@ export function OrderProgress({ status }: { status: string }) {
             </span>
             <span
               className={cn(
-                "mt-1.5 whitespace-nowrap text-[10px] uppercase tracking-[0.1em]",
+                "mt-1.5 px-0.5 text-center text-[9px] uppercase leading-tight sm:text-[10px] sm:tracking-[0.1em]",
                 active
                   ? "font-bold text-ember"
                   : done

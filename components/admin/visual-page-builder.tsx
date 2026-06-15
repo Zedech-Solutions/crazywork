@@ -151,7 +151,7 @@ export function VisualPageBuilder({ pageKey }: { pageKey: FormPageKey }) {
         </div>
 
         {region && (
-          <aside className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl border border-warmgrey/60 bg-white/60">
+          <aside className="fixed inset-x-0 bottom-0 z-40 flex max-h-[75vh] flex-col overflow-hidden rounded-t-2xl border border-warmgrey/60 bg-white shadow-2xl md:static md:max-h-none md:w-[340px] md:shrink-0 md:rounded-2xl md:bg-white/60 md:shadow-none">
             <div className="flex items-center justify-between border-b border-warmgrey/60 px-4 py-3">
               <p className="subhead text-base">
                 {PANEL_TITLES[region] ?? "Edit"}

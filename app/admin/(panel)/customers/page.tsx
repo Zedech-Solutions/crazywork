@@ -113,20 +113,20 @@ export default function AdminCustomersPage() {
             {data ? `${data.total} customer${data.total === 1 ? "" : "s"}` : "—"}
           </p>
         </div>
-        <form onSubmit={search} className="flex gap-2">
-          <div className="relative">
+        <form onSubmit={search} className="flex w-full gap-2 sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
             <Search
               size={15}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brown"
             />
             <Input
-              className="w-64 pl-9"
+              className="w-full pl-9 sm:w-64"
               placeholder="Search name or email"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-          <Button type="submit" variant="outline">
+          <Button type="submit" variant="outline" className="shrink-0">
             Search
           </Button>
         </form>

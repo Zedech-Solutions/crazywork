@@ -284,6 +284,86 @@ describe("best-single selection (no stacking)", () => {
   });
 });
 
+describe("stacking (campaign + code)", () => {
+  const stacker = campaign({
+    id: "stack",
+    name: "Member 10%",
+    type: "cart_total_tier",
+    rules: { tiers: [{ minSubtotal: rm(50), percent: 10 }] },
+    stacksWithCodes: true,
+  });
+
+  test("a stacks-with-codes campaign applies on top of the code (both listed)", () => {
+    const result = evaluateCart({
+      items: [{ unitPrice: rm(100), quantity: 1 }], // subtotal RM100
+      campaigns: [stacker],
+      code: { code: "SAVE20", percentage: 0, amountOffSen: rm(20) },
+      shippingFee: SHIPPING,
+      now: NOW,
+    });
+    // campaign 10% (RM10) + code RM20 = RM30
+    expect(result.discountAmount).toBe(rm(30));
+    expect(result.discounts).toHaveLength(2);
+    expect(result.discounts.map((d) => d.source).sort()).toEqual([
+      "campaign",
+      "code",
+    ]);
+  });
+
+  test("a non-stacking campaign is still best-single-wins vs the code", () => {
+    const result = evaluateCart({
+      items: [{ unitPrice: rm(100), quantity: 1 }],
+      campaigns: [{ ...stacker, stacksWithCodes: false }],
+      code: { code: "SAVE20", percentage: 0, amountOffSen: rm(20) },
+      shippingFee: SHIPPING,
+      now: NOW,
+    });
+    expect(result.discountAmount).toBe(rm(20)); // code RM20 > campaign RM10
+    expect(result.discounts).toHaveLength(1);
+    expect(result.discounts[0].source).toBe("code");
+  });
+
+  test("stacked total is capped at the subtotal", () => {
+    const result = evaluateCart({
+      items: [{ unitPrice: rm(10), quantity: 1 }], // subtotal RM10
+      campaigns: [
+        { ...stacker, rules: { tiers: [{ minSubtotal: rm(5), percent: 50 }] } },
+      ],
+      code: { code: "BIG", percentage: 0, amountOffSen: rm(50) },
+      shippingFee: SHIPPING,
+      now: NOW,
+    });
+    expect(result.discountAmount).toBe(rm(10));
+    expect(result.total).toBe(SHIPPING); // subtotal fully discounted
+  });
+});
+
+describe("fixed-amount code", () => {
+  test("applies a flat sen discount when amountOffSen is set", () => {
+    const result = evaluateCart({
+      items: [{ unitPrice: rm(100), quantity: 1 }], // subtotal RM100
+      campaigns: [],
+      code: { code: "SUMMER-ABCD", percentage: 0, amountOffSen: rm(20) },
+      shippingFee: SHIPPING,
+      now: NOW,
+    });
+    expect(result.discountAmount).toBe(rm(20));
+    expect(result.discountSource).toBe("code");
+    expect(result.discountLabel).toBe("SUMMER-ABCD");
+  });
+
+  test("is capped at the subtotal (never negative total)", () => {
+    const result = evaluateCart({
+      items: [{ unitPrice: rm(10), quantity: 1 }], // subtotal RM10
+      campaigns: [],
+      code: { code: "BIG", percentage: 0, amountOffSen: rm(50) },
+      shippingFee: SHIPPING,
+      now: NOW,
+    });
+    expect(result.discountAmount).toBe(rm(10));
+  });
+});
+
 describe("campaign vs promo code", () => {
   test("code wins when larger than every campaign", () => {
     const result = evaluateCart({

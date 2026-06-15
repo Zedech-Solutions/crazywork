@@ -123,13 +123,13 @@ export default function AdminDashboard() {
           <Link
             key={card.label}
             href={card.href}
-            className={`rounded-xl border bg-sand/50 p-5 transition-colors hover:border-ink ${
+            className={`flex h-full flex-col justify-between rounded-xl border bg-sand/50 p-5 transition-colors hover:border-ink ${
               card.highlight ? "border-ember/60" : "border-warmgrey/60"
             }`}
           >
             <p className="eyebrow text-brown">{card.label}</p>
             <p
-              className={`headline mt-2 text-4xl ${
+              className={`headline mt-3 text-4xl ${
                 card.accent
                   ? "text-red-700"
                   : card.highlight
@@ -148,9 +148,9 @@ export default function AdminDashboard() {
       </p>
 
       {/* RANGE TOGGLE */}
-      <div className="mt-10 flex items-center justify-between">
+      <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="subhead text-2xl">Sales</h2>
-        <div className="flex gap-1 rounded-full border border-warmgrey/60 bg-sand/50 p-1">
+        <div className="flex gap-1 self-start rounded-full border border-warmgrey/60 bg-sand/50 p-1 sm:self-auto">
           {RANGES.map((r) => (
             <button
               key={r.key}

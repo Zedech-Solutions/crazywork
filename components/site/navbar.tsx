@@ -29,7 +29,7 @@ export function Navbar() {
           CRAZYWORK
         </Link>
 
-        <ul className="hidden items-center gap-5 lg:gap-6 md:flex">
+        <ul className="hidden items-center gap-5 lg:flex lg:gap-6">
           {LINKS.map((link) => (
             <li key={link.href}>
               <Link
@@ -67,7 +67,7 @@ export function Navbar() {
           </button>
           <button
             aria-label="Menu"
-            className="cursor-pointer md:hidden"
+            className="cursor-pointer lg:hidden"
             onClick={() => setMobileOpen((v) => !v)}
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -76,7 +76,7 @@ export function Navbar() {
       </nav>
 
       {mobileOpen && (
-        <div className="md:hidden">
+        <div className="lg:hidden">
           {/* Backdrop — dims content and closes on tap. */}
           <button
             aria-label="Close menu"

@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GripVertical, Plus, Trash2, X } from "lucide-react";
 import { adminFetch } from "@/components/admin/api";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/admin/confirm";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
-import { Badge, Input, Label } from "@/components/ui/field";
+import { Badge, Input, Label, Textarea } from "@/components/ui/field";
 import { evaluateCart, type CampaignType } from "@/lib/discount";
 import { formatRM, rm } from "@/lib/money";
 
@@ -242,11 +242,89 @@ function LiveCalculator({ form }: { form: CampaignForm }) {
   );
 }
 
+// The pre-checkout upsell rides on campaign tiers ("add {n} more, save
+// {percent}%"), so its config lives here next to the campaigns that drive it.
+// Persists straight to store settings via the partial-merge PATCH.
+function UpsellPanel() {
+  const [enabled, setEnabled] = useState(true);
+  const [template, setTemplate] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    adminFetch<{
+      settings: {
+        preCheckoutUpsellEnabled: boolean;
+        preCheckoutUpsellTemplate: string;
+      };
+    }>("/settings")
+      .then((r) => {
+        setEnabled(r.settings.preCheckoutUpsellEnabled);
+        setTemplate(r.settings.preCheckoutUpsellTemplate);
+      })
+      .finally(() => setLoaded(true));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await adminFetch("/settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          preCheckoutUpsellEnabled: enabled,
+          preCheckoutUpsellTemplate: template,
+        }),
+      });
+      setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <section className="mt-8 rounded-2xl border border-warmgrey/60 bg-sand/30 p-5">
+      <h2 className="subhead text-xl">Pre-checkout upsell</h2>
+      <p className="mt-1 text-sm text-brown">
+        A nudge shown just before checkout when the cart is close to the next
+        tier — &ldquo;add {"{n}"} more, save {"{percent}"}%&rdquo;. Driven by the
+        quantity / cart-total tiers in the campaigns above.
+      </p>
+      <div className="mt-4">
+        <CheckboxField
+          label="Pre-checkout upsell popup enabled"
+          checked={enabled}
+          onCheckedChange={setEnabled}
+        />
+        <div className="mt-3">
+          <Label>Upsell template — slots: {"{n}"} and {"{percent}"}</Label>
+          <Textarea
+            className="min-h-16"
+            value={template}
+            onChange={(e) => setTemplate(e.target.value)}
+          />
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <Button variant="accent" size="sm" onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save upsell"}
+          </Button>
+          {saved && <span className="text-sm text-emerald-700">Saved ✓</span>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function AdminCampaignsPage() {
   const [campaigns, setCampaigns] = useState<ApiCampaign[]>([]);
   const [form, setForm] = useState<CampaignForm | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const orderRef = useRef<ApiCampaign[]>([]);
   const confirm = useConfirm();
 
   const reload = useCallback(() => {
@@ -255,6 +333,40 @@ export default function AdminCampaignsPage() {
       .catch((e) => setError(e.message));
   }, []);
   useEffect(reload, [reload]);
+
+  // Keep a ref to the live order so the drop handler reads the latest sequence
+  // (it's mutated mid-drag by reorderOver, after this render's closure).
+  useEffect(() => {
+    orderRef.current = campaigns;
+  }, [campaigns]);
+
+  function reorderOver(overId: string) {
+    if (!dragId || dragId === overId) return;
+    setCampaigns((list) => {
+      const from = list.findIndex((c) => c.id === dragId);
+      const to = list.findIndex((c) => c.id === overId);
+      if (from === -1 || to === -1) return list;
+      const next = [...list];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
+
+  async function persistOrder() {
+    if (!dragId) return;
+    setDragId(null);
+    try {
+      await adminFetch("/campaigns/reorder", {
+        method: "POST",
+        body: JSON.stringify({ ids: orderRef.current.map((c) => c.id) }),
+      });
+      reload();
+    } catch (e) {
+      setError((e as Error).message);
+      reload(); // restore the saved order if the write failed
+    }
+  }
 
   async function save() {
     if (!form) return;
@@ -432,7 +544,7 @@ export default function AdminCampaignsPage() {
               </div>
             )}
 
-            <div className="grid gap-5 sm:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2">
               <div>
                 <Label>Starts</Label>
                 <Input
@@ -449,15 +561,12 @@ export default function AdminCampaignsPage() {
                   onChange={(e) => set("endAt", e.target.value)}
                 />
               </div>
-              <div>
-                <Label>Priority (tie-break)</Label>
-                <Input
-                  type="number"
-                  value={form.priority}
-                  onChange={(e) => set("priority", e.target.value)}
-                />
-              </div>
             </div>
+            <p className="text-xs text-warmgrey">
+              Priority is set by drag-and-drop order on the Campaigns list — no
+              number to guess. When two campaigns give the same discount, the one
+              higher in the list wins.
+            </p>
             <div className="flex flex-wrap gap-6 text-sm">
               <CheckboxField
                 label="Active"
@@ -465,14 +574,16 @@ export default function AdminCampaignsPage() {
                 onCheckedChange={(v) => set("active", v)}
               />
               <CheckboxField
-                label="Stacks with promo codes (future — default off)"
+                label="Stack promo codes on top of this campaign"
                 checked={form.stacksWithCodes}
                 onCheckedChange={(v) => set("stacksWithCodes", v)}
               />
             </div>
             <p className="text-xs text-warmgrey">
-              At checkout the engine computes every applicable campaign plus any
-              promo code and applies only the single largest discount.
+              By default the engine applies only the single largest discount
+              (best campaign or promo code). Turn on stacking to let a promo code
+              add on top of this campaign — both then show as separate lines at
+              checkout.
             </p>
             {error && <p className="text-sm text-red-700">{error}</p>}
             <div className="flex gap-3 border-t border-warmgrey pt-5">
@@ -493,30 +604,59 @@ export default function AdminCampaignsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="headline text-5xl">Campaigns</h1>
-        <Button variant="accent" onClick={() => setForm({ ...EMPTY })}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="headline text-4xl sm:text-5xl">Campaigns</h1>
+        <Button
+          variant="accent"
+          className="w-full sm:w-auto"
+          onClick={() => setForm({ ...EMPTY })}
+        >
           <Plus size={16} /> New campaign
         </Button>
       </div>
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
-      <div className="mt-8 space-y-3">
+      {campaigns.length > 1 && (
+        <p className="mt-6 text-xs text-brown">
+          Drag to reorder — the higher a campaign sits, the higher its priority
+          when two give the same discount.
+        </p>
+      )}
+      <div className="mt-3 space-y-3">
         {campaigns.map((c) => (
           <div
             key={c.id}
-            className="flex flex-wrap items-center justify-between gap-3 border border-warmgrey bg-sand/40 p-4"
+            draggable
+            onDragStart={() => setDragId(c.id)}
+            onDragEnter={() => reorderOver(c.id)}
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnd={persistOrder}
+            onDrop={(e) => {
+              e.preventDefault();
+              persistOrder();
+            }}
+            className={`flex flex-wrap items-center justify-between gap-3 border border-warmgrey bg-sand/40 p-4 ${
+              dragId === c.id ? "opacity-50" : ""
+            }`}
           >
-            <button
-              className="text-left cursor-pointer"
-              onClick={() => setForm(toForm(c))}
-            >
-              <p className="subhead text-lg hover:text-ember">{c.name}</p>
-              <p className="mt-0.5 text-xs text-brown">
-                {TYPE_LABELS[c.type]} · priority {c.priority}
-                {c.startAt ? ` · from ${c.startAt.slice(0, 10)}` : ""}
-                {c.endAt ? ` · until ${c.endAt.slice(0, 10)}` : ""}
-              </p>
-            </button>
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                aria-hidden
+                className="shrink-0 cursor-grab text-warmgrey active:cursor-grabbing"
+              >
+                <GripVertical size={16} />
+              </span>
+              <button
+                className="min-w-0 text-left cursor-pointer"
+                onClick={() => setForm(toForm(c))}
+              >
+                <p className="subhead text-lg hover:text-ember">{c.name}</p>
+                <p className="mt-0.5 text-xs text-brown">
+                  {TYPE_LABELS[c.type]}
+                  {c.startAt ? ` · from ${c.startAt.slice(0, 10)}` : ""}
+                  {c.endAt ? ` · until ${c.endAt.slice(0, 10)}` : ""}
+                </p>
+              </button>
+            </div>
             <div className="flex items-center gap-3">
               <Badge tone={c.active ? "ember" : "outline"}>
                 {c.active ? "active" : "off"}
@@ -535,6 +675,8 @@ export default function AdminCampaignsPage() {
           <p className="text-sm text-brown">No campaigns yet — create the first one.</p>
         )}
       </div>
+
+      <UpsellPanel />
     </div>
   );
 }

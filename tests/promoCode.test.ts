@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  generateCampaignCode,
   generateCode,
   validatePromoCode,
   type DiscountCodeRecord,
@@ -115,6 +116,38 @@ describe("validatePromoCode", () => {
     });
     expect(result).toEqual({ ok: true, lockToUserId: null });
   });
+
+  // Campaign/bulk codes have no issued email — open to anyone, single-use.
+  test("campaign code (no issued email) is valid for any email, no lock", () => {
+    const result = validatePromoCode({
+      record: code({ issuedEmail: null }),
+      email: "anyone@example.com",
+      userId: "user_x",
+      now: NOW,
+    });
+    expect(result).toEqual({ ok: true, lockToUserId: null });
+  });
+
+  test("campaign code still respects single-use", () => {
+    const result = validatePromoCode({
+      record: code({ issuedEmail: null, used: true }),
+      email: "anyone@example.com",
+      now: NOW,
+    });
+    expect(result).toEqual({ ok: false, reason: "already_used" });
+  });
+
+  test("campaign code respects expiry", () => {
+    const result = validatePromoCode({
+      record: code({
+        issuedEmail: null,
+        expiresAt: new Date("2026-06-01T00:00:00Z"),
+      }),
+      email: "anyone@example.com",
+      now: NOW,
+    });
+    expect(result).toEqual({ ok: false, reason: "expired" });
+  });
 });
 
 describe("generateCode", () => {
@@ -125,6 +158,23 @@ describe("generateCode", () => {
 
   test("generates distinct codes", () => {
     const batch = new Set(Array.from({ length: 50 }, () => generateCode()));
+    expect(batch.size).toBeGreaterThan(45);
+  });
+});
+
+describe("generateCampaignCode", () => {
+  test("uppercases the prefix and appends a random alphanumeric suffix", () => {
+    expect(generateCampaignCode("summer")).toMatch(/^SUMMER[A-Z0-9]{6}$/);
+  });
+
+  test("strips non-alphanumerics from the prefix", () => {
+    expect(generateCampaignCode("sum-mer 25!")).toMatch(/^SUMMER25[A-Z0-9]{6}$/);
+  });
+
+  test("generates distinct codes for the same prefix", () => {
+    const batch = new Set(
+      Array.from({ length: 50 }, () => generateCampaignCode("X")),
+    );
     expect(batch.size).toBeGreaterThan(45);
   });
 });

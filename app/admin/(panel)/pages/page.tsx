@@ -245,25 +245,39 @@ export default function AdminPagesPage() {
   }
 
   const tabs = (
-    <div className="mb-4 flex flex-wrap gap-2">
-      {PAGE_TABS.map((t) => (
-        <button
-          key={t.key}
-          onClick={() => {
-            setPage(t.key);
+    <>
+      {/* mobile: dropdown */}
+      <div className="mb-4 sm:hidden">
+        <Dropdown
+          value={page}
+          onValueChange={(v) => {
+            setPage(v as "home" | FormPageKey);
             setRegion(null);
           }}
-          className={cn(
-            "rounded-full px-4 py-1.5 text-xs font-medium uppercase tracking-[0.12em] transition-colors cursor-pointer",
-            page === t.key
-              ? "bg-ink text-peach"
-              : "border border-warmgrey text-brown hover:border-ink",
-          )}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
+          options={PAGE_TABS.map((t) => ({ label: t.label, value: t.key }))}
+        />
+      </div>
+      {/* desktop: pills */}
+      <div className="mb-4 hidden flex-wrap gap-2 sm:flex">
+        {PAGE_TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => {
+              setPage(t.key);
+              setRegion(null);
+            }}
+            className={cn(
+              "rounded-full px-4 py-1.5 text-xs font-medium uppercase tracking-[0.12em] transition-colors cursor-pointer",
+              page === t.key
+                ? "bg-ink text-peach"
+                : "border border-warmgrey text-brown hover:border-ink",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+    </>
   );
 
   // non-home pages use the same live builder (iframe + click-to-edit)
@@ -276,7 +290,7 @@ export default function AdminPagesPage() {
           <div className="mt-3">{tabs}</div>
           <p className="text-xs text-brown">
             Editing <span className="font-bold">{pageLabel}</span> · click an{" "}
-            <span className="text-ember">✎ orange tag</span> on the preview.
+            <span className="font-bold text-ink">✎ edit tag</span> on the preview.
           </p>
         </div>
         <VisualPageBuilder pageKey={page} />
@@ -296,25 +310,25 @@ export default function AdminPagesPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-start justify-between pb-3">
-        <div>
-          <h1 className="headline text-4xl">Pages</h1>
-          <div className="mt-3">{tabs}</div>
-          <p className="text-xs text-brown">
-            Editing <span className="font-bold">Home</span> · click an{" "}
-            <span className="text-ember">✎ orange tag</span> on the preview to edit
-            that part.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {saved && <span className="text-sm text-emerald-700">Saved ✓</span>}
-          <Button variant="ghost" onClick={() => setC({ ...DEFAULT_HOME_CONTENT })}>
-            Reset
-          </Button>
-          <Button variant="accent" onClick={save} disabled={busy}>
-            {busy ? "Saving…" : "Save"}
-          </Button>
-        </div>
+      <div className="pb-1">
+        <h1 className="headline text-4xl">Pages</h1>
+        <div className="mt-3">{tabs}</div>
+        <p className="text-xs text-brown">
+          Editing <span className="font-bold">Home</span> · click an{" "}
+          <span className="font-bold text-ink">✎ edit tag</span> on the preview to edit
+          that part.
+        </p>
+      </div>
+
+      {/* action toolbar — same placement as the other pages' builder */}
+      <div className="flex items-center justify-end gap-3 pb-3">
+        {saved && <span className="text-sm text-emerald-700">Saved ✓</span>}
+        <Button variant="ghost" onClick={() => setC({ ...DEFAULT_HOME_CONTENT })}>
+          Reset
+        </Button>
+        <Button variant="accent" onClick={save} disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </Button>
       </div>
 
       <div className="flex min-h-0 flex-1 gap-4">
@@ -330,7 +344,7 @@ export default function AdminPagesPage() {
 
         {/* edit panel — opens on region click; preview stays visible + live */}
         {region && (
-          <aside className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl border border-warmgrey/60 bg-white/60">
+          <aside className="fixed inset-x-0 bottom-0 z-40 flex max-h-[75vh] flex-col overflow-hidden rounded-t-2xl border border-warmgrey/60 bg-white shadow-2xl md:static md:max-h-none md:w-[340px] md:shrink-0 md:rounded-2xl md:bg-white/60 md:shadow-none">
             <div className="flex items-center justify-between border-b border-warmgrey/60 px-4 py-3">
               <p className="subhead text-base">{REGION_TITLES[region]}</p>
               <button

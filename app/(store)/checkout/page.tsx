@@ -15,10 +15,14 @@ interface Quote {
   subtotal: number;
   discountAmount: number;
   discountLabel: string | null;
+  discounts: { label: string; amount: number; source: string }[];
   shippingFee: number;
   freeShippingApplied: boolean;
   total: number;
 }
+
+const FORM_KEY = "crazywork-checkout-form";
+const UPSELL_KEY = "crazywork-checkout-upsell-seen";
 
 export default function CheckoutPage() {
   const cart = useCart();
@@ -28,6 +32,8 @@ export default function CheckoutPage() {
     email: "",
     phone: "",
     address: "",
+    postcode: "",
+    city: "",
     state: "Selangor",
   });
   const [code, setCode] = useState("");
@@ -37,16 +43,39 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [upsell, setUpsell] = useState<string | null>(null);
+  const [upsellPercent, setUpsellPercent] = useState<number | null>(null);
   const upsellShown = useRef(false);
+  const hydrated = useRef(false);
+
+  // Restore a saved checkout (e.g. after the customer left to add more items)
+  // and remember whether the upsell was already shown this session.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(FORM_KEY);
+      if (saved) setForm((f) => ({ ...f, ...JSON.parse(saved) }));
+    } catch {
+      // ignore corrupt storage
+    }
+    upsellShown.current = sessionStorage.getItem(UPSELL_KEY) === "1";
+    hydrated.current = true;
+  }, []);
+
+  // Persist the form so navigating away and back doesn't wipe it.
+  useEffect(() => {
+    if (hydrated.current) sessionStorage.setItem(FORM_KEY, JSON.stringify(form));
+  }, [form]);
 
   useEffect(() => {
-    if (session?.user && !form.email) {
-      setForm((f) => ({
-        ...f,
-        email: session.user.email,
-        name: f.name || (session.user.name ?? ""),
-      }));
-    }
+    if (!session?.user) return;
+    setForm((f) =>
+      f.email
+        ? f
+        : {
+            ...f,
+            email: session.user.email,
+            name: f.name || (session.user.name ?? ""),
+          },
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -60,25 +89,31 @@ export default function CheckoutPage() {
   const refreshQuote = useCallback(
     async (withCode: string | null) => {
       if (items.length === 0) return;
-      setCodeError(null);
-      const res = await fetch("/api/checkout/quote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items,
-          shippingZone: zone,
-          code: withCode,
-          email: form.email,
-        }),
-      });
-      const body = await res.json();
+      const priceFor = async (codeToTry: string | null) => {
+        const res = await fetch("/api/checkout/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items,
+            shippingZone: zone,
+            code: codeToTry,
+            email: form.email,
+          }),
+        });
+        return res.json();
+      };
+
+      const body = await priceFor(withCode);
       if (body.ok) {
         setQuote(body.pricing);
         setAppliedCode(withCode);
+        setCodeError(null);
       } else if (body.error === "invalid_code") {
-        setCodeError(body.message);
+        // Show why the code was rejected, but keep pricing correct (no code).
+        setCodeError(body.message ?? "That code can't be applied.");
         setAppliedCode(null);
-        refreshQuote(null);
+        const noCode = await priceFor(null);
+        if (noCode.ok) setQuote(noCode.pricing);
       } else {
         setQuote(null);
         setSubmitError(body.message ?? "Cart problem — please review.");
@@ -114,6 +149,7 @@ export default function CheckoutPage() {
         setSubmitting(false);
         return;
       }
+      sessionStorage.removeItem(FORM_KEY); // order placed — don't restore it
       window.location.href = body.url;
     } catch {
       setSubmitError("Network problem — try again.");
@@ -124,7 +160,9 @@ export default function CheckoutPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!upsellShown.current) {
-      upsellShown.current = true; // once per checkout attempt, never blocks
+      // Show the upsell at most once per session — not on a repeat checkout.
+      upsellShown.current = true;
+      sessionStorage.setItem(UPSELL_KEY, "1");
       try {
         const res = await fetch("/api/checkout/upsell", {
           method: "POST",
@@ -134,6 +172,7 @@ export default function CheckoutPage() {
         const body = await res.json();
         if (body.show) {
           setUpsell(body.message);
+          setUpsellPercent(typeof body.percent === "number" ? body.percent : null);
           return;
         }
       } catch {
@@ -178,11 +217,32 @@ export default function CheckoutPage() {
           </div>
           <div>
             <Label htmlFor="co-phone">Phone</Label>
-            <Input id="co-phone" type="tel" placeholder="01X-XXXXXXX" {...field("phone")} />
+            <Input id="co-phone" type="tel" placeholder="0123456789" {...field("phone")} />
           </div>
           <div>
             <Label htmlFor="co-address">Address</Label>
-            <Input id="co-address" required placeholder="Street, unit, postcode, city" {...field("address")} />
+            <Input id="co-address" required placeholder="Street, unit, building" {...field("address")} />
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="co-postcode">Postcode</Label>
+              <Input
+                id="co-postcode"
+                required
+                inputMode="numeric"
+                placeholder="50450"
+                {...field("postcode")}
+              />
+            </div>
+            <div>
+              <Label htmlFor="co-city">City</Label>
+              <Input
+                id="co-city"
+                required
+                placeholder="Kuala Lumpur"
+                {...field("city")}
+              />
+            </div>
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
@@ -244,12 +304,19 @@ export default function CheckoutPage() {
                 <span className="text-brown">Subtotal</span>
                 <span>{formatRM(quote.subtotal)}</span>
               </p>
-              {quote.discountAmount > 0 && (
-                <p className="flex justify-between text-ember">
-                  <span>Discount — {quote.discountLabel}</span>
-                  <span>−{formatRM(quote.discountAmount)}</span>
-                </p>
-              )}
+              {quote.discounts && quote.discounts.length > 0
+                ? quote.discounts.map((d, i) => (
+                    <p key={i} className="flex justify-between text-ember">
+                      <span>Discount — {d.label}</span>
+                      <span>−{formatRM(d.amount)}</span>
+                    </p>
+                  ))
+                : quote.discountAmount > 0 && (
+                    <p className="flex justify-between text-ember">
+                      <span>Discount — {quote.discountLabel}</span>
+                      <span>−{formatRM(quote.discountAmount)}</span>
+                    </p>
+                  )}
               <p className="flex justify-between">
                 <span className="text-brown">
                   Shipping ({zone}){quote.freeShippingApplied ? " · free" : ""}
@@ -287,7 +354,12 @@ export default function CheckoutPage() {
       >
         <DialogContent aria-describedby={undefined}>
           <p className="eyebrow text-ember">Almost there</p>
-          <DialogTitle className="headline mt-1 text-4xl">{upsell}</DialogTitle>
+          {upsellPercent != null && (
+            <p className="mt-2 inline-block rounded-full bg-ember px-4 py-1.5 subhead text-sm text-peach">
+              Save {upsellPercent}% off
+            </p>
+          )}
+          <DialogTitle className="headline mt-2 text-4xl">{upsell}</DialogTitle>
           <div className="mt-6 flex flex-col gap-2 sm:flex-row">
             <Button asChild variant="outline" className="flex-1">
               <Link href="/shop">Add more</Link>

@@ -200,6 +200,37 @@ describe("placeOrder → markOrderPaid lifecycle", () => {
     ).toBe(true);
   });
 
+  test("a sale that crosses the low-stock threshold fires a low-stock alert", async () => {
+    const startStock = settings.lowStockThreshold + 1; // one above the line
+    const lowProduct = await prisma.product.create({
+      data: {
+        slug: `${RUN}-lowstock`,
+        name: "Last Few (spec)",
+        basePrice: "100.00",
+        status: "active",
+        variants: { create: [{ size: "S", colour: "Red", stock: startStock }] },
+      },
+      include: { variants: true },
+    });
+
+    const placed = await placeOrder({
+      items: [{ variantId: lowProduct.variants[0].id, quantity: 1 }], // lands on threshold
+      shippingZone: "west",
+      customer: customer(),
+    });
+    if (!placed.ok) throw new Error("expected ok");
+    await markOrderPaid(placed.orderNumber);
+
+    const alert = notifier.lowStockAlerts.find(
+      (a) => a.orderNumber === placed.orderNumber,
+    );
+    expect(alert).toBeTruthy();
+    expect(alert?.items.some((i) => i.colour === "Red")).toBe(true);
+
+    await prisma.order.deleteMany({ where: { orderNumber: placed.orderNumber } });
+    await prisma.product.delete({ where: { id: lowProduct.id } });
+  });
+
   test("marking paid twice does not double-decrement", async () => {
     const placed = await placeOrder({
       items: [{ variantId: inStockVariantId, quantity: 1 }],
@@ -320,7 +351,7 @@ describe("promo codes at checkout", () => {
     await prisma.campaign.delete({ where: { id: campaign.id } });
   });
 
-  test("code wins → consumed, locked to the signed-in user, single-use", async () => {
+  test("code is consumed at payment (not placement) → single-use after paid", async () => {
     const user = await prisma.user.create({
       data: { email: `${RUN}-locker@example.com`, name: "Locker" },
     });
@@ -349,13 +380,26 @@ describe("promo codes at checkout", () => {
     expect(order?.appliedDiscountLabel).toBe(code.code);
     expect(Number(order?.discountAmount)).toBeCloseTo(10); // 10% of RM100
 
-    const after = await prisma.discountCode.findUnique({
-      where: { id: code.id },
+    // NOT consumed yet — the order is still pending (failed/abandoned checkout
+    // must not burn the code), and it stays reusable until paid.
+    let codeRow = await prisma.discountCode.findUnique({ where: { id: code.id } });
+    expect(codeRow?.used).toBe(false);
+    const stillUsable = await priceCart({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      code: code.code,
+      email: EMAIL,
+      userId: user.id,
     });
-    expect(after?.used).toBe(true);
-    expect(after?.lockedUserId).toBe(user.id);
+    expect(stillUsable.ok).toBe(true);
 
-    // single-use: second attempt rejected
+    // paying consumes + locks the code
+    expect((await markOrderPaid(placed.orderNumber)).ok).toBe(true);
+    codeRow = await prisma.discountCode.findUnique({ where: { id: code.id } });
+    expect(codeRow?.used).toBe(true);
+    expect(codeRow?.lockedUserId).toBe(user.id);
+
+    // single-use: now rejected
     const second = await priceCart({
       items: [{ variantId: inStockVariantId, quantity: 1 }],
       shippingZone: "west",

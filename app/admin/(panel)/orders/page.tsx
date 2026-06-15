@@ -7,6 +7,7 @@ import { CopyButton } from "@/components/admin/copy-button";
 import { NewOrderDialog } from "@/components/admin/new-order-dialog";
 import { OrderProgress } from "@/components/admin/order-progress";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import {
   Dialog,
   DialogClose,
@@ -21,6 +22,8 @@ import { cn } from "@/lib/utils";
 
 const STATUSES = ["pending", "paid", "processing", "shipped", "delivered", "cancelled"] as const;
 
+const PAGE_SIZE = 20;
+
 interface ApiOrder {
   id: string;
   orderNumber: string;
@@ -29,6 +32,8 @@ interface ApiOrder {
   customerEmail: string;
   customerPhone: string | null;
   shippingAddress: string;
+  shippingPostcode: string | null;
+  shippingCity: string | null;
   shippingState: string;
   shippingZone: string;
   status: (typeof STATUSES)[number];
@@ -167,6 +172,7 @@ function ExportDialog({
       <Button
         variant="outline"
         size="sm"
+        className="w-full sm:w-auto"
         onClick={() => {
           // pre-fill with whatever the list is currently showing
           setStatus(initial.status || "all");
@@ -250,6 +256,7 @@ export default function AdminOrdersPage() {
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [page, setPage] = useState(1);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
   const [editTotalId, setEditTotalId] = useState<string | null>(null);
@@ -258,6 +265,8 @@ export default function AdminOrdersPage() {
   const [editPayValue, setEditPayValue] = useState("cash");
   const [confirmArchive, setConfirmArchive] = useState<ApiOrder | null>(null);
   const [archiving, setArchiving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<ApiOrder | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [tracking, setTracking] = useState<{ courier: string; number: string }>({
     courier: "",
     number: "",
@@ -316,6 +325,21 @@ export default function AdminOrdersPage() {
       setError((e as Error).message);
     } finally {
       setArchiving(false);
+    }
+  }
+
+  async function deleteOrder(orderId: string) {
+    setDeleting(true);
+    setError(null);
+    try {
+      await adminFetch(`/orders/${orderId}`, { method: "DELETE" });
+      setConfirmDelete(null);
+      setOpen(null);
+      reload();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -392,6 +416,19 @@ export default function AdminOrdersPage() {
       .includes(q);
   });
 
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const pageVisible = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Reset to the first page whenever the filtered result set changes.
+  useEffect(() => {
+    setPage(1);
+  }, [query, filter, sort, view, fromDate, toDate]);
+
+  // Keep the page in range when the list shrinks (e.g. after archiving).
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
   const totalOrders = Object.values(counts).reduce((s, n) => s + n, 0);
   const totalItems = Object.values(itemCounts).reduce((s, n) => s + n, 0);
 
@@ -399,21 +436,21 @@ export default function AdminOrdersPage() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="headline text-5xl">Orders</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative w-full sm:w-auto">
             <Search
               size={15}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-warmgrey"
             />
             <Input
-              className="w-56 pl-9"
+              className="w-full pl-9 sm:w-56"
               placeholder="Search orders…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
           <Dropdown
-            className="w-40"
+            className="w-full sm:w-40"
             value={filter || "all"}
             onValueChange={(v) => setFilter(v === "all" ? "" : v)}
             options={[
@@ -425,7 +462,7 @@ export default function AdminOrdersPage() {
             ]}
           />
           <Dropdown
-            className="w-44"
+            className="w-full sm:w-44"
             value={sort}
             onValueChange={(v) => setSort(v as typeof sort)}
             options={[
@@ -436,7 +473,7 @@ export default function AdminOrdersPage() {
             ]}
           />
           <Dropdown
-            className="w-36"
+            className="w-full sm:w-36"
             value={view}
             onValueChange={(v) => {
               setView(v as "active" | "archived");
@@ -482,22 +519,24 @@ export default function AdminOrdersPage() {
             </button>
           );
         })}
-        <span className="mx-1 text-warmgrey">·</span>
-        <Input
-          type="date"
-          className="w-40 py-1.5"
-          value={fromDate}
-          max={toDate || undefined}
-          onChange={(e) => setFromDate(e.target.value)}
-        />
-        <span className="text-brown">→</span>
-        <Input
-          type="date"
-          className="w-40 py-1.5"
-          value={toDate}
-          min={fromDate || undefined}
-          onChange={(e) => setToDate(e.target.value)}
-        />
+        <span className="mx-1 hidden text-warmgrey sm:inline">·</span>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <Input
+            type="date"
+            className="min-w-0 flex-1 py-1.5 sm:w-40 sm:flex-none"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+          <span className="text-brown">→</span>
+          <Input
+            type="date"
+            className="min-w-0 flex-1 py-1.5 sm:w-40 sm:flex-none"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(e) => setToDate(e.target.value)}
+          />
+        </div>
         {(fromDate || toDate) && (
           <button
             onClick={() => {
@@ -601,14 +640,14 @@ export default function AdminOrdersPage() {
             No orders match.
           </p>
         )}
-        {visible.map((order) => {
+        {pageVisible.map((order) => {
           const expanded = open === order.id;
           return (
             <div key={order.id} className="border border-warmgrey bg-sand/30">
               <div
                 role="button"
                 tabIndex={0}
-                className="grid w-full cursor-pointer grid-cols-2 items-center gap-3 p-4 text-left text-sm sm:grid-cols-[1.4fr_1fr_1.4fr_0.9fr_minmax(4.5rem,0.6fr)_minmax(5.5rem,0.6fr)_7rem]"
+                className="w-full cursor-pointer p-4 text-left text-sm"
                 onClick={() => {
                   setOpen(expanded ? null : order.id);
                   setTracking({
@@ -623,48 +662,103 @@ export default function AdminOrdersPage() {
                   }
                 }}
               >
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="subhead truncate text-base">
-                    {order.orderNumber}
-                  </span>
-                  <CopyButton
-                    value={order.orderNumber}
-                    label="order number"
-                    iconOnly
-                  />
-                </span>
-                <span className="truncate text-brown">{order.customerName}</span>
-                <span className="flex min-w-0 items-center gap-1.5 text-brown">
-                  <span className="truncate">{order.customerEmail}</span>
-                  <CopyButton value={order.customerEmail} label="email" iconOnly />
-                </span>
-                <span className="flex min-w-0 items-center gap-1 text-xs text-brown">
-                  <span className="truncate">{fmtMethod(order.paymentMethod)}</span>
-                  {order.paymentRef && (
-                    <span onClick={(e) => e.stopPropagation()}>
+                {/* Mobile: full-width stacked rows */}
+                <div className="flex flex-col gap-1.5 sm:hidden">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="subhead truncate text-base">
+                        {order.orderNumber}
+                      </span>
                       <CopyButton
-                        value={order.paymentRef}
-                        label="payment reference"
+                        value={order.orderNumber}
+                        label="order number"
                         iconOnly
                       />
                     </span>
-                  )}
-                </span>
-                <span className="text-right tabular-nums">
-                  {formatRM(toSen(order.total))}
-                </span>
-                <span className="text-right text-xs tabular-nums text-brown">
-                  {new Date(order.placedAt).toLocaleDateString("en-MY")}
-                </span>
-                <span className="flex items-center justify-end gap-2">
-                  {order.isTest && <TestPill />}
-                  {order.orderNote && (
-                    <span title="Customer left a note" className="text-ember">
-                      <Mail size={15} />
+                    <span className="flex shrink-0 items-center gap-2">
+                      {order.isTest && <TestPill />}
+                      {order.orderNote && (
+                        <span title="Customer left a note" className="text-ember">
+                          <Mail size={15} />
+                        </span>
+                      )}
+                      <StatusPill status={order.status} />
                     </span>
-                  )}
-                  <StatusPill status={order.status} />
-                </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-brown">
+                    <span className="truncate">{order.customerName}</span>
+                    <span className="shrink-0 tabular-nums text-ink">
+                      {formatRM(toSen(order.total))}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs text-brown">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate">{order.customerEmail}</span>
+                      <CopyButton value={order.customerEmail} label="email" iconOnly />
+                    </span>
+                    <span className="shrink-0 tabular-nums">
+                      {new Date(order.placedAt).toLocaleDateString("en-MY")}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-brown">
+                    <span className="truncate">{fmtMethod(order.paymentMethod)}</span>
+                    {order.paymentRef && (
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <CopyButton
+                          value={order.paymentRef}
+                          label="payment reference"
+                          iconOnly
+                        />
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Desktop: column grid */}
+                <div className="hidden items-center gap-3 sm:grid sm:grid-cols-[1.4fr_1fr_1.4fr_0.9fr_minmax(4.5rem,0.6fr)_minmax(5.5rem,0.6fr)_7rem]">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="subhead truncate text-base">
+                      {order.orderNumber}
+                    </span>
+                    <CopyButton
+                      value={order.orderNumber}
+                      label="order number"
+                      iconOnly
+                    />
+                  </span>
+                  <span className="truncate text-brown">{order.customerName}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 text-brown">
+                    <span className="truncate">{order.customerEmail}</span>
+                    <CopyButton value={order.customerEmail} label="email" iconOnly />
+                  </span>
+                  <span className="flex min-w-0 items-center gap-1 text-xs text-brown">
+                    <span className="truncate">{fmtMethod(order.paymentMethod)}</span>
+                    {order.paymentRef && (
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <CopyButton
+                          value={order.paymentRef}
+                          label="payment reference"
+                          iconOnly
+                        />
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-right tabular-nums">
+                    {formatRM(toSen(order.total))}
+                  </span>
+                  <span className="text-right text-xs tabular-nums text-brown">
+                    {new Date(order.placedAt).toLocaleDateString("en-MY")}
+                  </span>
+                  <span className="flex items-center justify-end gap-2">
+                    {order.isTest && <TestPill />}
+                    {order.orderNote && (
+                      <span title="Customer left a note" className="text-ember">
+                        <Mail size={15} />
+                      </span>
+                    )}
+                    <StatusPill status={order.status} />
+                  </span>
+                </div>
               </div>
 
               {expanded && (
@@ -799,16 +893,23 @@ export default function AdminOrdersPage() {
                         {order.customerName}
                         {order.customerPhone ? ` · ${order.customerPhone}` : ""}
                       </p>
-                      <p className="flex items-start gap-1.5 text-brown">
-                        <span>
-                          {order.shippingAddress}, {order.shippingState}
-                        </span>
-                        <CopyButton
-                          value={`${order.shippingAddress}, ${order.shippingState}`}
-                          label="address"
-                          iconOnly
-                        />
-                      </p>
+                      {(() => {
+                        const fullAddress = [
+                          order.shippingAddress,
+                          [order.shippingPostcode, order.shippingCity]
+                            .filter(Boolean)
+                            .join(" "),
+                          order.shippingState,
+                        ]
+                          .filter(Boolean)
+                          .join(", ");
+                        return (
+                          <p className="flex items-start gap-1.5 text-brown">
+                            <span>{fullAddress}</span>
+                            <CopyButton value={fullAddress} label="address" />
+                          </p>
+                        );
+                      })()}
                       <p className="mt-1 flex items-center gap-1.5">
                         <a
                           href={`mailto:${order.customerEmail}`}
@@ -857,30 +958,41 @@ export default function AdminOrdersPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-warmgrey pt-4">
+                  <div className="mt-5 flex flex-col gap-2 border-t border-warmgrey pt-4 sm:flex-row sm:flex-wrap sm:items-center">
                     {STATUSES.filter((s) => s !== order.status).map((s) => (
                       <Button
                         key={s}
                         size="sm"
                         variant={s === "cancelled" ? "danger" : "outline"}
-                        className={cn(s === "shipped" && "border-ember text-ember")}
+                        className={cn(
+                          "w-full sm:w-auto",
+                          s === "shipped" && "border-ember text-ember",
+                        )}
                         onClick={() => setStatus(order, s)}
                       >
                         Mark {s}
                       </Button>
                     ))}
                     {order.archived ? (
-                      <button
-                        onClick={() => setArchived(order.id, false)}
-                        disabled={archiving}
-                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                      >
-                        <RotateCcw size={14} /> Restore order
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setArchived(order.id, false)}
+                          disabled={archiving}
+                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 sm:ml-auto sm:w-auto"
+                        >
+                          <RotateCcw size={14} /> Restore order
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(order)}
+                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 sm:w-auto"
+                        >
+                          <Trash2 size={14} /> Delete permanently
+                        </button>
+                      </>
                     ) : (
                       <button
                         onClick={() => setConfirmArchive(order)}
-                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 sm:ml-auto sm:w-auto"
                       >
                         <Trash2 size={14} /> Archive order
                       </button>
@@ -893,6 +1005,15 @@ export default function AdminOrdersPage() {
         })}
         {orders.length === 0 && <p className="text-sm text-brown">No orders.</p>}
       </div>
+
+      <Pagination
+        className="mt-6"
+        page={page}
+        pageCount={pageCount}
+        total={visible.length}
+        pageSize={PAGE_SIZE}
+        onPageChange={setPage}
+      />
 
       {/* Archive confirmation (soft delete — reversible) */}
       <Dialog
@@ -922,6 +1043,40 @@ export default function AdminOrdersPage() {
               onClick={() => confirmArchive && setArchived(confirmArchive.id, true)}
             >
               {archiving ? "Archiving…" : "Archive"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hard delete (irreversible — archived orders only) */}
+      <Dialog
+        open={confirmDelete !== null}
+        onOpenChange={(o) => !o && setConfirmDelete(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogTitle className="subhead text-xl">Delete permanently?</DialogTitle>
+          <p className="mt-2 text-sm text-brown">
+            <span className="font-bold text-ink">
+              {confirmDelete?.orderNumber}
+            </span>{" "}
+            and all its items will be{" "}
+            <span className="font-bold text-red-700">erased for good</span>. This
+            can&apos;t be undone. If you only want it out of the way, restore and
+            keep it archived instead.
+          </p>
+          <div className="mt-6 flex justify-end gap-2">
+            <DialogClose asChild>
+              <Button variant="outline" size="sm">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={deleting}
+              onClick={() => confirmDelete && deleteOrder(confirmDelete.id)}
+            >
+              {deleting ? "Deleting…" : "Delete forever"}
             </Button>
           </div>
         </DialogContent>

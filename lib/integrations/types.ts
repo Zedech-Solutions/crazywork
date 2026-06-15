@@ -67,6 +67,21 @@ export interface OrderAlert {
   test?: boolean;
 }
 
+export interface LowStockItem {
+  productName: string;
+  size: string;
+  colour: string;
+  stockLeft: number; // remaining after the sale that crossed the threshold
+}
+
+export interface LowStockAlert {
+  orderNumber: string; // the sale that pushed these variants low
+  threshold: number;
+  items: LowStockItem[];
+  test?: boolean;
+}
+
 export interface Notifier {
   orderPlaced(order: OrderAlert): Promise<void>;
+  lowStock(alert: LowStockAlert): Promise<void>;
 }

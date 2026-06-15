@@ -6,7 +6,7 @@ import { randomBytes } from "crypto";
 export interface DiscountCodeRecord {
   id: string;
   code: string;
-  issuedEmail: string;
+  issuedEmail: string | null; // null = campaign/bulk code, open to anyone
   percentage: number;
   used: boolean;
   lockedUserId: string | null;
@@ -26,10 +26,10 @@ export type PromoValidation =
 
 export const PROMO_REJECTION_MESSAGES: Record<PromoRejection, string> = {
   not_found: "That code doesn't exist.",
-  wrong_email: "This code was issued to a different email.",
+  wrong_email: "This code isn't linked to your account — it belongs to someone else.",
   expired: "This code has expired.",
   already_used: "This code has already been used.",
-  locked_to_other_account: "This code is locked to another account.",
+  locked_to_other_account: "This code belongs to another account.",
 };
 
 export function validatePromoCode(input: {
@@ -43,8 +43,13 @@ export function validatePromoCode(input: {
   const userId = input.userId ?? null;
 
   if (!record) return { ok: false, reason: "not_found" };
+
+  // Personal codes are tied to an email; campaign/bulk codes (issuedEmail null)
+  // are open to anyone.
+  const issued = record.issuedEmail;
   if (
-    record.issuedEmail.trim().toLowerCase() !== input.email.trim().toLowerCase()
+    issued &&
+    issued.trim().toLowerCase() !== input.email.trim().toLowerCase()
   ) {
     return { ok: false, reason: "wrong_email" };
   }
@@ -52,6 +57,10 @@ export function validatePromoCode(input: {
     return { ok: false, reason: "expired" };
   }
   if (record.used) return { ok: false, reason: "already_used" };
+
+  // Campaign code: single redemption by anyone, never account-locked.
+  if (!issued) return { ok: true, lockToUserId: null };
+
   if (record.lockedUserId) {
     if (userId !== record.lockedUserId) {
       return { ok: false, reason: "locked_to_other_account" };
@@ -59,6 +68,18 @@ export function validatePromoCode(input: {
     return { ok: true, lockToUserId: null };
   }
   return { ok: true, lockToUserId: userId };
+}
+
+// Campaign/bulk code: admin-chosen prefix (alphanumeric, uppercased) + a random
+// suffix from the same alphabet as personal codes.
+export function generateCampaignCode(prefix: string): string {
+  const clean = prefix.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const bytes = randomBytes(6);
+  let suffix = "";
+  for (const byte of bytes) {
+    suffix += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+  }
+  return `${clean}${suffix}`;
 }
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
