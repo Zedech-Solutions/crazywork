@@ -5,9 +5,26 @@ const base =
 
 export function Input({
   className,
+  type,
+  onWheel,
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(base, className)} {...props} />;
+  return (
+    <input
+      type={type}
+      className={cn(base, className)}
+      onWheel={(e) => {
+        // A focused number input changes its value when you scroll the wheel /
+        // trackpad over it (e.g. 10 → 9.98 from two step="0.01" ticks). Blur on
+        // wheel so the page scrolls instead of silently editing the number.
+        if (type === "number" && document.activeElement === e.currentTarget) {
+          e.currentTarget.blur();
+        }
+        onWheel?.(e);
+      }}
+      {...props}
+    />
+  );
 }
 
 export function Textarea({
