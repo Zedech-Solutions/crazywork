@@ -335,6 +335,13 @@ export default function AdminProductsPage() {
               onCheckedChange={(v) => set("soldOut", v)}
             />
           </div>
+          {editing.soldOut && editing.status !== "active" && (
+            <p className="text-xs text-ember">
+              Heads up: this product is a <b>draft</b>, so it won&apos;t show in
+              the store at all. Tick <b>Active</b> too if you want it listed as
+              sold out.
+            </p>
+          )}
 
           {/* VARIANTS */}
           <section className="border-t border-warmgrey pt-5">
