@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,15 @@ export default async function OurStoryPage() {
     .split(/\n{2,}/)
     .map((p) => p.trim())
     .filter(Boolean);
+  // Drop the pull-quote into the middle of the story (matches the original).
+  const quoteAfter = Math.floor(paragraphs.length / 2) - 1;
+  const quoteEl = content.quote ? (
+    <blockquote className="my-10 border-l-4 border-ember pl-6">
+      <p className="headline text-3xl leading-tight">
+        &ldquo;{content.quote}&rdquo;
+      </p>
+    </blockquote>
+  ) : null;
 
   return (
     <article className="pb-20">
@@ -46,15 +56,13 @@ export default async function OurStoryPage() {
 
       <div className="mx-auto max-w-3xl space-y-6 px-4 pt-12 text-[15px] leading-[1.8] text-ink/85 sm:px-6">
         {paragraphs.map((p, i) => (
-          <p key={i}>{p}</p>
+          <Fragment key={i}>
+            <p>{p}</p>
+            {i === quoteAfter && quoteEl}
+          </Fragment>
         ))}
-        {content.quote && (
-          <blockquote className="my-10 border-l-4 border-ember pl-6">
-            <p className="headline text-3xl leading-tight">
-              &ldquo;{content.quote}&rdquo;
-            </p>
-          </blockquote>
-        )}
+        {/* No paragraph to anchor to (0–1 paragraphs) → render at the end. */}
+        {quoteAfter < 0 && quoteEl}
         {content.ctaLabel && (
           <div className="pt-6">
             <Button asChild variant="accent" size="lg">
