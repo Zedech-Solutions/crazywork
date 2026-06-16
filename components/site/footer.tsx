@@ -19,7 +19,7 @@ const HELP_LINKS = [
 const BRAND_LINKS = [
   { href: "/our-story", label: "Our Story" },
   { href: "/mindset", label: "Mindset" },
-  { href: "/blog", label: "Blog" },
+  { href: "/collab", label: "Collab" },
 ];
 
 export async function Footer() {

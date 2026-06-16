@@ -14,7 +14,6 @@ const LINKS = [
   { href: "/mindset", label: "Mindset" },
   { href: "/our-story", label: "Our Story" },
   { href: "/community", label: "Community" },
-  { href: "/blog", label: "Blog" },
 ];
 
 export function Navbar() {

@@ -962,8 +962,9 @@ function postData(body: Record<string, unknown>) {
     slug: String(body.slug ?? "").trim(),
     title: String(body.title ?? "").trim(),
     coverImageUrl: (body.coverImageUrl as string) || null,
-    type: body.type === "collab" ? ("collab" as const) : ("blog" as const),
+    type: "collab" as const, // blog is gone — all content posts are collabs
     excerpt: (body.excerpt as string) || null,
+    featured: Boolean(body.featured),
     published: Boolean(body.published),
     publishedAt: body.published ? new Date() : null,
     metaTitle: (body.metaTitle as string) || null,

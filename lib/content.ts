@@ -385,12 +385,41 @@ export const DEFAULT_CHECKOUT_SUCCESS_CONTENT: CheckoutSuccessContent = {
   backgroundImage: "",
 };
 
+// The Our Story page — fully editable via the admin Pages builder.
+export interface OurStoryContent {
+  headerImage: string;
+  eyebrow: string;
+  title: string; // supports \n and *accent*
+  body: string; // paragraphs split on blank lines
+  quote: string;
+  ctaLabel: string;
+  ctaHref: string;
+}
+
+export const DEFAULT_OUR_STORY_CONTENT: OurStoryContent = {
+  headerImage: "/images/story.svg",
+  eyebrow: "Our Story",
+  title: "Built in Malaysia. Rep by rep.",
+  body: `CRAZYWORK didn't start in a boardroom. It started at 5:47am in a half-lit gym in the Klang Valley, between sets, with a simple observation: the people doing the real work were wearing gear made for people who don't.
+
+So we made our own. Heavyweight fabric that survives the wash. Cuts that move with a body that trains. No slogans we haven't lived. Small runs, made properly, released when they're ready — that's why we do drops, not seasons.
+
+The name says it plainly. Crazy work — the kind people call crazy until they see the results. If you know that feeling, you're already one of us.
+
+We're still small. Still Malaysian. Still packing orders ourselves and reading every message. That's not a limitation — that's the point.`,
+  quote:
+    "We don't celebrate where you're going. We celebrate that you showed up.",
+  ctaLabel: "Wear what you train for →",
+  ctaHref: "/shop",
+};
+
 export const CONTENT_PAGES = {
   home: DEFAULT_HOME_CONTENT,
   mindset: DEFAULT_MINDSET_CONTENT,
   drops: DEFAULT_DROPS_CONTENT,
   footer: DEFAULT_FOOTER_CONTENT,
   checkoutSuccess: DEFAULT_CHECKOUT_SUCCESS_CONTENT,
+  ourStory: DEFAULT_OUR_STORY_CONTENT,
 } as const;
 
 export type ContentPageKey = keyof typeof CONTENT_PAGES;
@@ -430,3 +459,4 @@ export async function getMindsetArticle(
 export const getDropsContent = () => getPageContent("drops");
 export const getFooterContent = () => getPageContent("footer");
 export const getCheckoutSuccessContent = () => getPageContent("checkoutSuccess");
+export const getOurStoryContent = () => getPageContent("ourStory");

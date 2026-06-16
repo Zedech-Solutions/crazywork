@@ -44,6 +44,7 @@ const PANEL_TITLES: Record<string, string> = {
   intro: "Intro",
   footer: "Footer",
   success: "Checkout success",
+  story: "Our Story",
 };
 
 // Live visual builder for the non-home pages (mindset / drops / footer) — same
@@ -354,6 +355,51 @@ export function VisualPageBuilder({ pageKey }: { pageKey: FormPageKey }) {
                     value={str("description")}
                     onChange={(v) => set("description", v)}
                     textarea
+                  />
+                </>
+              )}
+
+              {pageKey === "ourStory" && (
+                <>
+                  <MediaField
+                    label="Background image"
+                    value={str("headerImage")}
+                    onChange={(v) => set("headerImage", v)}
+                  />
+                  <Field
+                    label="Small label"
+                    value={str("eyebrow")}
+                    onChange={(v) => set("eyebrow", v)}
+                  />
+                  <Field
+                    label="Title"
+                    value={str("title")}
+                    onChange={(v) => set("title", v)}
+                    textarea
+                    hint="Enter = new line. *word* = orange."
+                  />
+                  <Field
+                    label="Story text"
+                    value={str("body")}
+                    onChange={(v) => set("body", v)}
+                    textarea
+                    hint="Blank line = new paragraph."
+                  />
+                  <Field
+                    label="Pull quote (blank to hide)"
+                    value={str("quote")}
+                    onChange={(v) => set("quote", v)}
+                    textarea
+                  />
+                  <Field
+                    label="Button text (blank to hide)"
+                    value={str("ctaLabel")}
+                    onChange={(v) => set("ctaLabel", v)}
+                  />
+                  <Field
+                    label="Button goes to"
+                    value={str("ctaHref")}
+                    onChange={(v) => set("ctaHref", v)}
                   />
                 </>
               )}

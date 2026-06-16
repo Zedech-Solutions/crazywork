@@ -227,6 +227,7 @@ async function seedContent() {
       slug: "crazywork-x-forge-gym",
       title: "CRAZYWORK × Forge Gym",
       type: "collab" as const,
+      featured: true,
       coverImageUrl: "/images/blog/collab.svg",
       excerpt:
         "Our first collaboration — a limited capsule with the gym where the brand was born.",
@@ -263,59 +264,6 @@ async function seedContent() {
         { type: "button" as const, data: { label: "Shop the drop", href: "/shop" } },
       ],
     },
-    {
-      slug: "the-iron-doesnt-care",
-      title: "The Iron Doesn't Care",
-      type: "blog" as const,
-      coverImageUrl: "/images/blog/iron.svg",
-      excerpt:
-        "The barbell has no opinion about your week, your excuses, or your feed. That's exactly why we love it.",
-      blocks: [
-        {
-          type: "paragraph" as const,
-          data: {
-            text: "The iron doesn't care that you slept badly. It doesn't care about your promotion, your breakup, or your follower count. 100kg is 100kg at 6am and at midnight — and there's a strange comfort in that honesty.",
-          },
-        },
-        { type: "heading" as const, data: { text: "Honest weight", level: 2 } },
-        {
-          type: "paragraph" as const,
-          data: {
-            text: "Everything else negotiates. The bar doesn't. You either moved it or you didn't, and *both outcomes teach you something true about today*.",
-          },
-        },
-        {
-          type: "quote" as const,
-          data: { text: "The bar is the most honest conversation you'll have all day.", attribution: "" },
-        },
-        { type: "button" as const, data: { label: "Wear what you train for", href: "/shop" } },
-      ],
-    },
-    {
-      slug: "5-47am-club",
-      title: "The 5:47AM Club",
-      type: "blog" as const,
-      coverImageUrl: "/images/blog/discipline.svg",
-      excerpt:
-        "Nobody claps at 5:47am. No likes, no playlist drops, no spotters. Just you and the decision you made last night.",
-      blocks: [
-        {
-          type: "paragraph" as const,
-          data: {
-            text: "The 5:47AM Club has no membership card. You join it the night before — when you fill the bottle, pack the bag, and put the alarm across the room. The morning is just the receipt.",
-          },
-        },
-        { type: "heading" as const, data: { text: "Reps nobody watched", level: 2 } },
-        {
-          type: "paragraph" as const,
-          data: {
-            text: "Progress is built in the sessions nobody sees. We made our gear for those hours — **the ones that don't make the highlight reel** but make the highlight reel possible.",
-          },
-        },
-        { type: "image" as const, data: { url: "/images/blog/discipline.svg", alt: "Training before sunrise" } },
-        { type: "button" as const, data: { label: "Join the club", href: "/shop" } },
-      ],
-    },
   ];
 
   for (const post of posts) {
@@ -328,6 +276,7 @@ async function seedContent() {
         slug: post.slug,
         title: post.title,
         type: post.type,
+        featured: post.featured,
         coverImageUrl: post.coverImageUrl,
         excerpt: post.excerpt,
         published: true,
@@ -344,7 +293,7 @@ async function seedContent() {
       },
     });
   }
-  console.log("✓ content (1 collab + 2 blog posts with blocks)");
+  console.log("✓ content (1 featured collab with blocks)");
 }
 
 async function seedFaqsAndCommunity() {

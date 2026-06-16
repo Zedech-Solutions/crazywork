@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { slug: true, updatedAt: true },
     }),
     prisma.contentPost.findMany({
-      where: { published: true, type: "blog" },
+      where: { published: true, type: "collab" },
       select: { slug: true, updatedAt: true },
     }),
     getMindsetContent(),
@@ -23,7 +23,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "",
     "/shop",
     "/drops",
-    "/blog",
     "/collab",
     "/community",
     "/faq",
@@ -44,7 +43,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     })),
     ...posts.map((p) => ({
-      url: `${base}/blog/${p.slug}`,
+      url: `${base}/collab/${p.slug}`,
       lastModified: p.updatedAt,
       changeFrequency: "monthly" as const,
       priority: 0.6,

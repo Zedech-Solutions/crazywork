@@ -24,7 +24,7 @@ const GROUPS: { label?: string; items: { href: string; label: string }[] }[] = [
     label: "Site",
     items: [
       { href: "/admin/pages", label: "Pages" },
-      { href: "/admin/content", label: "Content" },
+      { href: "/admin/content", label: "Collab" },
       { href: "/admin/community", label: "Community" },
       { href: "/admin/faqs", label: "FAQs" },
     ],

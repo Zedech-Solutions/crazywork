@@ -138,7 +138,7 @@ function PromoSlotPreview({
   );
 }
 
-const NAV = ["Shop", "Drops", "Collab", "Mindset", "Our Story", "Community", "Blog"];
+const NAV = ["Shop", "Drops", "Collab", "Mindset", "Our Story", "Community"];
 
 export function HomePreview({
   content,
