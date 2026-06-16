@@ -16,6 +16,7 @@ const PAGE_TABS: { key: PageTabKey; label: string }[] = [
   { key: "home", label: "Home" },
   { key: "mindset", label: "Mindset" },
   { key: "drops", label: "Drops" },
+  { key: "ourStory", label: "Our Story" },
   { key: "footer", label: "Footer" },
   { key: "checkoutSuccess", label: "Checkout" },
 ];
@@ -36,7 +37,6 @@ const PAGE_OPTIONS = [
   { label: "Drops page", value: "/drops" },
   { label: "Mindset page", value: "/mindset" },
   { label: "Our Story page", value: "/our-story" },
-  { label: "Blog", value: "/blog" },
   { label: "Collab page", value: "/collab" },
   { label: "Community page", value: "/community" },
   { label: "FAQ page", value: "/faq" },

@@ -301,6 +301,7 @@ model ContentPost {
   coverImageUrl   String?
   type            ContentType
   excerpt         String?
+  featured        Boolean        @default(false) // collab page: the big featured one
   published       Boolean        @default(false)
   publishedAt     DateTime?
   metaTitle       String?

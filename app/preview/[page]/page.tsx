@@ -7,12 +7,14 @@ import {
   DropsPreview,
   FooterPreview,
   MindsetPreview,
+  OurStoryPreview,
 } from "@/components/admin/page-previews";
 import {
   DEFAULT_CHECKOUT_SUCCESS_CONTENT,
   DEFAULT_DROPS_CONTENT,
   DEFAULT_FOOTER_CONTENT,
   DEFAULT_MINDSET_CONTENT,
+  DEFAULT_OUR_STORY_CONTENT,
 } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,10 @@ const REGISTRY: Record<
 > = {
   mindset: { Component: MindsetPreview as never, fallback: DEFAULT_MINDSET_CONTENT },
   drops: { Component: DropsPreview as never, fallback: DEFAULT_DROPS_CONTENT },
+  ourStory: {
+    Component: OurStoryPreview as never,
+    fallback: DEFAULT_OUR_STORY_CONTENT,
+  },
   footer: { Component: FooterPreview as never, fallback: DEFAULT_FOOTER_CONTENT },
   checkoutSuccess: {
     Component: CheckoutSuccessPreview as never,

@@ -24,8 +24,9 @@ interface PostForm {
   slug: string;
   title: string;
   coverImageUrl: string;
-  type: "blog" | "collab";
+  type: "collab";
   excerpt: string;
+  featured: boolean;
   published: boolean;
   metaTitle: string;
   metaDescription: string;
@@ -39,6 +40,7 @@ interface ApiPost {
   coverImageUrl: string | null;
   type: "blog" | "collab";
   excerpt: string | null;
+  featured: boolean;
   published: boolean;
   metaTitle: string | null;
   metaDescription: string | null;
@@ -61,8 +63,9 @@ const EMPTY: PostForm = {
   slug: "",
   title: "",
   coverImageUrl: "",
-  type: "blog",
+  type: "collab",
   excerpt: "",
+  featured: false,
   published: false,
   metaTitle: "",
   metaDescription: "",
@@ -237,8 +240,9 @@ export default function AdminContentPage() {
       slug: p.slug,
       title: p.title,
       coverImageUrl: p.coverImageUrl ?? "",
-      type: p.type,
+      type: "collab",
       excerpt: p.excerpt ?? "",
+      featured: p.featured,
       published: p.published,
       metaTitle: p.metaTitle ?? "",
       metaDescription: p.metaDescription ?? "",
@@ -304,7 +308,7 @@ export default function AdminContentPage() {
       <div className="max-w-3xl">
         <div className="flex items-center justify-between gap-3">
           <h1 className="headline text-4xl sm:text-5xl">
-            {form.id ? "Edit Post" : "New Post"}
+            {form.id ? "Edit Collab" : "New Collab"}
           </h1>
           <Button variant="ghost" className="shrink-0" onClick={() => setForm(null)}>
             <X size={16} /> Close
@@ -334,17 +338,6 @@ export default function AdminContentPage() {
             <div>
               <Label>Slug</Label>
               <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
-            </div>
-            <div>
-              <Label>Type</Label>
-              <Dropdown
-                value={form.type}
-                onValueChange={(v) => set("type", v as "blog" | "collab")}
-                options={[
-                  { label: "Blog post", value: "blog" },
-                  { label: "Collab page", value: "collab" },
-                ]}
-              />
             </div>
           </div>
           <div className="flex items-start gap-4">
@@ -384,11 +377,18 @@ export default function AdminContentPage() {
               />
             </div>
           </div>
-          <CheckboxField
-            label="Published"
-            checked={form.published}
-            onCheckedChange={(v) => set("published", v)}
-          />
+          <div className="flex flex-wrap gap-6">
+            <CheckboxField
+              label="Published"
+              checked={form.published}
+              onCheckedChange={(v) => set("published", v)}
+            />
+            <CheckboxField
+              label="Featured on collab page"
+              checked={form.featured}
+              onCheckedChange={(v) => set("featured", v)}
+            />
+          </div>
 
           {/* BLOCKS */}
           <section className="border-t border-warmgrey pt-5">
@@ -498,21 +498,24 @@ export default function AdminContentPage() {
   return (
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="headline text-4xl sm:text-5xl">Content</h1>
+        <h1 className="headline text-4xl sm:text-5xl">Collab</h1>
         <Button
           variant="accent"
           className="w-full sm:w-auto"
           onClick={() => startEdit()}
         >
-          <Plus size={16} /> New post
+          <Plus size={16} /> New collab
         </Button>
       </div>
       <p className="mt-2 text-sm text-brown">
-        Block-based posts power <code>/blog</code> and <code>/collab</code>.
+        Block-based collab stories shown on <code>/collab</code>. Tick{" "}
+        <span className="font-bold">Featured</span> to highlight one at the top.
       </p>
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
       <div className="mt-8 space-y-3">
-        {posts.map((post) => (
+        {posts
+          .filter((post) => post.type === "collab")
+          .map((post) => (
           <div
             key={post.id}
             className="flex flex-wrap items-center justify-between gap-3 border border-warmgrey bg-sand/40 p-4"
@@ -520,12 +523,12 @@ export default function AdminContentPage() {
             <button className="text-left cursor-pointer" onClick={() => startEdit(post)}>
               <p className="subhead text-lg hover:text-ember">{post.title}</p>
               <p className="mt-0.5 text-xs text-brown">
-                /{post.type === "collab" ? "collab" : `blog/${post.slug}`} ·{" "}
+                /collab/{post.slug} ·{" "}
                 {post.blocks.length} block{post.blocks.length === 1 ? "" : "s"}
               </p>
             </button>
             <div className="flex items-center gap-3">
-              <Badge tone={post.type === "collab" ? "ink" : "sand"}>{post.type}</Badge>
+              {post.featured && <Badge tone="ink">featured</Badge>}
               <Badge tone={post.published ? "ember" : "outline"}>
                 {post.published ? "published" : "draft"}
               </Badge>

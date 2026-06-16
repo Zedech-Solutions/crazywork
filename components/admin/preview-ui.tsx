@@ -48,7 +48,7 @@ export function Region({
   );
 }
 
-const NAV = ["Shop", "Drops", "Collab", "Mindset", "Our Story", "Community", "Blog"];
+const NAV = ["Shop", "Drops", "Collab", "Mindset", "Our Story", "Community"];
 
 // Static announcement bar + nav skeleton, used by the non-home previews where
 // those are not editable (they're edited on the Home tab).

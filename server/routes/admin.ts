@@ -964,6 +964,7 @@ function postData(body: Record<string, unknown>) {
     coverImageUrl: (body.coverImageUrl as string) || null,
     type: body.type === "collab" ? ("collab" as const) : ("blog" as const),
     excerpt: (body.excerpt as string) || null,
+    featured: Boolean(body.featured),
     published: Boolean(body.published),
     publishedAt: body.published ? new Date() : null,
     metaTitle: (body.metaTitle as string) || null,

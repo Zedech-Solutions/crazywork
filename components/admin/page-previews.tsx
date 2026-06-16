@@ -12,6 +12,7 @@ import type {
   DropsContent,
   FooterContent,
   MindsetContent,
+  OurStoryContent,
 } from "@/lib/content";
 
 type PreviewProps<T> = {
@@ -87,6 +88,60 @@ export function MindsetPreview({
               </div>
             ))}
           </div>
+        </div>
+      </Region>
+    </div>
+  );
+}
+
+export function OurStoryPreview({
+  content,
+  editable,
+  onEdit,
+}: PreviewProps<OurStoryContent>) {
+  const paragraphs = (content.body ?? "")
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return (
+    <div className="bg-peach font-body text-ink">
+      <PreviewChrome />
+      <Region editable={editable}>
+        <Hotspot label="Story" region="story" onEdit={onEdit} />
+        <div className="relative flex h-56 items-end overflow-hidden bg-ink">
+          {content.headerImage && (
+            <Image
+              src={content.headerImage}
+              alt=""
+              fill
+              sizes="100vw"
+              className="object-cover opacity-70"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-ink/80 to-transparent" />
+          <div className="relative z-10 px-6 pb-5">
+            <p className="eyebrow text-ember">{content.eyebrow}</p>
+            <h1 className="headline mt-1 text-4xl text-peach">
+              <RichText text={content.title} />
+            </h1>
+          </div>
+        </div>
+        <div className="space-y-3 px-6 py-6 text-sm leading-relaxed text-ink/80">
+          {paragraphs.slice(0, 3).map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+          {content.quote && (
+            <blockquote className="my-4 border-l-4 border-ember pl-4">
+              <p className="headline text-xl leading-tight">
+                &ldquo;{content.quote}&rdquo;
+              </p>
+            </blockquote>
+          )}
+          {content.ctaLabel && (
+            <span className="inline-block rounded bg-ember px-3 py-1.5 text-xs font-bold text-peach">
+              {content.ctaLabel}
+            </span>
+          )}
         </div>
       </Region>
     </div>
