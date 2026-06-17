@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { ColourDropdown } from "@/components/product/colour-dropdown";
+import { CountdownTimer } from "@/components/site/countdown-timer";
+import { NotifyMe } from "@/components/site/notify-me";
 import { SizeGuide } from "@/components/site/size-guide";
 import { useCart } from "@/components/cart/cart-context";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
@@ -28,6 +31,9 @@ export interface PdpProduct {
   isNew: boolean;
   isLimited: boolean;
   soldOut: boolean; // forced sold out (manual flag or sold-out drop)
+  upcoming: boolean; // belongs to a drop that hasn't launched — not purchasable
+  countdownUntil: string | null; // the drop's launch countdown, when set
+  dropId: string | null; // its drop, for "notify me" signups when upcoming
   images: { url: string; alt: string }[];
   variants: PdpVariant[];
 }
@@ -35,9 +41,11 @@ export interface PdpProduct {
 export function PdpClient({
   product,
   sizeGuide,
+  notifyEnabled = false,
 }: {
   product: PdpProduct;
   sizeGuide: SizeGuideTable;
+  notifyEnabled?: boolean;
 }) {
   const cart = useCart();
   const sizes = useMemo(
@@ -113,7 +121,8 @@ export function PdpClient({
               />
             )}
             <div className="absolute left-3 top-3 flex gap-2">
-              {product.isNew && <Badge tone="ember">New</Badge>}
+              {product.upcoming && <Badge tone="ember">Upcoming</Badge>}
+              {product.isNew && !product.upcoming && <Badge tone="ember">New</Badge>}
               {product.isLimited && <Badge tone="ink">Limited</Badge>}
             </div>
           </div>
@@ -144,6 +153,29 @@ export function PdpClient({
           <h1 className="headline mt-1 text-5xl">{product.name}</h1>
           <p className="mt-3 text-2xl font-bold">{formatRM(product.basePriceSen)}</p>
 
+          {product.upcoming ? (
+            <div className="mt-8 rounded-2xl border border-warmgrey bg-sand/40 p-6">
+              <p className="eyebrow text-ember">Upcoming drop</p>
+              <p className="mt-2 text-sm text-brown">
+                This piece hasn&apos;t dropped yet. Check back when it goes live.
+              </p>
+              {product.countdownUntil &&
+                new Date(product.countdownUntil).getTime() > Date.now() && (
+                  <div className="mt-4">
+                    <CountdownTimer
+                      until={product.countdownUntil}
+                      label="Drops in"
+                    />
+                  </div>
+                )}
+              {product.dropId && notifyEnabled && (
+                <div className="mt-5">
+                  <NotifyMe dropId={product.dropId} dropName={product.name} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
           <div className="mt-8">
             <div className="flex items-center justify-between">
               <p className="eyebrow text-brown">Size — {size}</p>
@@ -222,6 +254,8 @@ export function PdpClient({
               </p>
             )}
           </div>
+            </>
+          )}
 
           {product.description && (
             <div className="mt-8 border-t border-warmgrey pt-6">
@@ -234,12 +268,13 @@ export function PdpClient({
         </div>
       </div>
 
-      {/* STICKY ADD-TO-CART — floating glassy panel (iOS-style) */}
+      {/* STICKY ADD-TO-CART — floating glassy panel (iOS-style); hidden for
+          upcoming products since they aren't purchasable yet. */}
       <div
         className={cn(
           "fixed bottom-4 z-30 transition-all duration-300",
           "inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2",
-          showSticky
+          showSticky && !product.upcoming
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-[160%] opacity-0",
         )}
@@ -274,24 +309,17 @@ export function PdpClient({
                 );
               })}
             </div>
-            {/* colour — dropdown keeps long names readable without overflow */}
+            {/* colour — custom themed dropdown (matches the glassy bar) */}
             {colours.length > 0 && (
-              <select
+              <ColourDropdown
                 value={colour}
-                onChange={(e) => setColour(e.target.value)}
-                aria-label="Colour"
-                className="h-8 min-w-0 max-w-[10rem] shrink rounded-full bg-white/40 px-3 subhead text-xs text-ink transition-colors cursor-pointer hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-ink/30"
-              >
-                {colours.map((c) => {
-                  const available = stockFor(size, c) > 0;
-                  return (
-                    <option key={c} value={c}>
-                      {c}
-                      {!available ? " — Sold out" : ""}
-                    </option>
-                  );
-                })}
-              </select>
+                onChange={setColour}
+                options={colours.map((c) => ({
+                  value: c,
+                  available: stockFor(size, c) > 0,
+                }))}
+                className="w-36 max-w-[calc(100vw-2rem)] shrink"
+              />
             )}
           </div>
 

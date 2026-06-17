@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Input, Label } from "@/components/ui/field";
+import { isoToLocalInput, localInputToIso } from "@/lib/datetime";
 
 const DROP_STATUS = [
+  { label: "Upcoming", value: "upcoming" },
   { label: "Current", value: "current" },
   { label: "Past", value: "past" },
   { label: "Sold out", value: "soldout" },
@@ -19,8 +21,9 @@ interface ApiDrop {
   id: string;
   name: string;
   slug: string;
-  status: "current" | "past" | "soldout";
+  status: "upcoming" | "current" | "past" | "soldout";
   featuredOnHome: boolean;
+  countdownUntil: string | null;
   sortOrder: number;
   products: { id: string; name: string }[];
 }
@@ -191,6 +194,33 @@ export default function AdminDropsPage() {
                 ? "No products assigned"
                 : drop.products.map((p) => p.name).join(" · ")}
             </p>
+            <div className="mt-3 pl-6">
+              <Label htmlFor={`countdown-${drop.id}`}>
+                Countdown until (optional · MYT)
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id={`countdown-${drop.id}`}
+                  type="datetime-local"
+                  className="max-w-xs"
+                  value={isoToLocalInput(drop.countdownUntil ?? "")}
+                  onChange={(e) =>
+                    update(drop.id, {
+                      countdownUntil: localInputToIso(e.target.value) || null,
+                    })
+                  }
+                />
+                {drop.countdownUntil && (
+                  <button
+                    type="button"
+                    onClick={() => update(drop.id, { countdownUntil: null })}
+                    className="shrink-0 text-xs text-brown hover:text-ember"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         ))}
       </div>

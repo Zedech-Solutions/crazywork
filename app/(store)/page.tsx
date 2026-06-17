@@ -5,6 +5,8 @@ import { HeroParallax } from "@/components/site/hero-parallax";
 import { Marquee } from "@/components/site/marquee";
 import { CategoryTiles } from "@/components/site/category-tiles";
 import { CommunityCard } from "@/components/site/community-card";
+import { DropTeaser } from "@/components/site/drop-teaser";
+import { NotifyMe } from "@/components/site/notify-me";
 import { Media } from "@/components/site/media";
 import { Parallax } from "@/components/site/parallax";
 import { ProductCard } from "@/components/site/product-card";
@@ -14,14 +16,14 @@ import { RichText } from "@/components/site/rich-text";
 import { activeProducts, toCardProduct } from "@/lib/catalog";
 import { getHomeContent } from "@/lib/content";
 import { prisma } from "@/lib/db";
-import { getSettings } from "@/lib/settings";
+import { getSetting } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [settings, content, featuredDrops, communityPhotos] = await Promise.all([
-    getSettings(),
-    getHomeContent(),
+  const [content, featuredDrops, communityPhotos, notifyEnabled] =
+    await Promise.all([
+      getHomeContent(),
     // Drops the admin chose to feature — any status (current / past / soldout) —
     // stacked in the saved drag order.
     prisma.drop.findMany({
@@ -43,6 +45,7 @@ export default async function HomePage() {
       orderBy: { sortOrder: "asc" },
       take: 6,
     }),
+    getSetting("emailDropLaunch"),
   ]);
 
   // One section per featured drop. When the admin hasn't featured anything, fall
@@ -53,6 +56,7 @@ export default async function HomePage() {
         id: d.id,
         name: d.name,
         status: d.status,
+        countdownUntil: d.countdownUntil ? d.countdownUntil.toISOString() : null,
         products: d.products,
       }))
     : [
@@ -60,18 +64,21 @@ export default async function HomePage() {
           id: "latest",
           name: "The Latest",
           status: "current" as const,
+          countdownUntil: null,
           products: await activeProducts(),
         },
       ];
 
   const dropEyebrow = (status: string, isFirst: boolean) =>
-    status === "soldout"
-      ? "Sold out"
-      : status === "past"
-        ? "Past drop"
-        : isFirst
-          ? content.featuredEyebrow
-          : "Featured drop";
+    status === "upcoming"
+      ? "Upcoming"
+      : status === "soldout"
+        ? "Sold out"
+        : status === "past"
+          ? "Past drop"
+          : isFirst
+            ? content.featuredEyebrow
+            : "Featured drop";
 
   return (
     <>
@@ -139,14 +146,24 @@ export default async function HomePage() {
               </p>
               <h2 className="headline mt-1 text-5xl">{section.name}</h2>
             </div>
-            {si === 0 && settings.dropCountdownUntil && (
-              <CountdownTimer until={settings.dropCountdownUntil} label="Starts in" />
-            )}
+            {section.countdownUntil &&
+              new Date(section.countdownUntil).getTime() > Date.now() && (
+                <CountdownTimer until={section.countdownUntil} label="Starts in" />
+              )}
           </div>
+          {section.status === "upcoming" && notifyEnabled && (
+            <div className="mb-8">
+              <NotifyMe dropId={section.id} dropName={section.name} />
+            </div>
+          )}
           {section.products.length === 0 ? (
-            <p className="py-6 text-sm text-warmgrey">
-              Pieces from this drop are no longer listed.
-            </p>
+            section.status === "upcoming" ? (
+              <DropTeaser />
+            ) : (
+              <p className="py-6 text-sm text-warmgrey">
+                Pieces from this drop are no longer listed.
+              </p>
+            )
           ) : (
             // Centered cards so a sparse drop (1–2 items) isn't stuck in the
             // left corner; a full row still lays out 2-up / 3-up.

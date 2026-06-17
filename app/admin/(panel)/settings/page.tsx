@@ -37,21 +37,6 @@ const SECRET_LABELS: Record<string, string> = {
   discord_error_webhook_url: "Error webhook",
 };
 
-// The drop countdown is stored as an unambiguous ISO instant in Malaysia time
-// (+08:00). A <input type="datetime-local"> edits wall-clock digits with no
-// offset, so we strip the offset for the picker and re-attach it on save.
-const MYT_OFFSET = "+08:00";
-
-function isoToLocalInput(iso: string): string {
-  // "2026-07-01T00:00:00+08:00" → "2026-07-01T00:00"
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(iso) ? iso.slice(0, 16) : "";
-}
-
-function localInputToIso(local: string): string {
-  // "2026-07-01T00:00" → "2026-07-01T00:00:00+08:00"
-  return local ? `${local}:00${MYT_OFFSET}` : "";
-}
-
 type StripeMode = "test" | "live";
 
 // A setup step shown in the "How to connect" dialog. `code` is rendered as a
@@ -605,9 +590,6 @@ export default function AdminSettingsPage() {
                 onChange={(e) => set("ssmNumber", e.target.value)}
               />
             </div>
-          </div>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <Label>Email popup delay (seconds)</Label>
               <Input
@@ -616,27 +598,6 @@ export default function AdminSettingsPage() {
                 value={settings.popupDelaySeconds}
                 onChange={(e) => set("popupDelaySeconds", Number(e.target.value))}
               />
-            </div>
-            <div>
-              <Label>Drop countdown until (optional · MYT)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="datetime-local"
-                  value={isoToLocalInput(settings.dropCountdownUntil)}
-                  onChange={(e) =>
-                    set("dropCountdownUntil", localInputToIso(e.target.value))
-                  }
-                />
-                {settings.dropCountdownUntil && (
-                  <button
-                    type="button"
-                    onClick={() => set("dropCountdownUntil", "")}
-                    className="shrink-0 text-xs text-brown hover:text-ember"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
             </div>
           </div>
 
@@ -679,7 +640,18 @@ export default function AdminSettingsPage() {
                 checked={settings.emailOrderStatusChange}
                 onCheckedChange={(v) => set("emailOrderStatusChange", v)}
               />
+              <CheckboxField
+                label="Drop launch (&ldquo;Notify me&rdquo; blast)"
+                checked={settings.emailDropLaunch}
+                onCheckedChange={(v) => set("emailDropLaunch", v)}
+              />
             </div>
+            {!settings.emailDropLaunch && (
+              <p className="mt-2 text-[11px] text-warmgrey">
+                With drop-launch emails off, the &ldquo;Notify me&rdquo; button is
+                hidden on upcoming drops (no signups are collected).
+              </p>
+            )}
             {!settings.emailPasswordReset && (
               <p className="mt-2 text-[11px] text-red-700">
                 Heads up: with password-reset emails off, customers can&apos;t

@@ -23,8 +23,21 @@ export function isSoldOut(product: {
   );
 }
 
+// A product is "upcoming" when it belongs to a drop that hasn't launched yet.
+// Upcoming products aren't purchasable — the PDP and cards show an Upcoming
+// state (plus the drop's countdown) instead of size/colour/add-to-cart.
+export function isUpcoming(product: {
+  drop?: { status: string } | null;
+}): boolean {
+  return product.drop?.status === "upcoming";
+}
+
 export function toCardProduct(product: ProductWithRelations): CardProduct {
   const inStock = product.variants.filter((v) => v.stock > 0);
+  const upcoming = isUpcoming(product);
+  // Upcoming takes precedence over sold-out (an unreleased drop may have zero
+  // stock) and disables the quick-add path.
+  const soldOut = !upcoming && isSoldOut(product);
   return {
     productId: product.id,
     slug: product.slug,
@@ -36,9 +49,10 @@ export function toCardProduct(product: ProductWithRelations): CardProduct {
         ?.imageUrl ?? null,
     isNew: product.isNew,
     isLimited: product.isLimited,
-    soldOut: isSoldOut(product),
+    soldOut,
+    upcoming,
     singleVariant:
-      !isSoldOut(product) && inStock.length === 1
+      !upcoming && !soldOut && inStock.length === 1
         ? {
             variantId: inStock[0].id,
             size: inStock[0].size,

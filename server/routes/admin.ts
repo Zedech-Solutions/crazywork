@@ -565,7 +565,7 @@ admin.post("/drops", async (c) => {
     data: {
       name: String(body.name ?? "").trim(),
       slug: String(body.slug ?? "").trim(),
-      status: ["current", "past", "soldout"].includes(body.status)
+      status: ["upcoming", "current", "past", "soldout"].includes(body.status)
         ? body.status
         : "current",
       featuredOnHome: Boolean(body.featuredOnHome),
@@ -594,23 +594,45 @@ admin.post("/drops/reorder", async (c) => {
 });
 
 admin.patch("/drops/:id", async (c) => {
+  const id = c.req.param("id");
   const body = await c.req.json();
-  await prisma.drop.update({
-    where: { id: c.req.param("id") },
+  const existing = await prisma.drop.findUnique({ where: { id } });
+  const updated = await prisma.drop.update({
+    where: { id },
     data: {
       ...(body.name !== undefined ? { name: String(body.name) } : {}),
       ...(body.slug !== undefined ? { slug: String(body.slug) } : {}),
-      ...(["current", "past", "soldout"].includes(body.status)
+      ...(["upcoming", "current", "past", "soldout"].includes(body.status)
         ? { status: body.status }
         : {}),
       ...(body.featuredOnHome !== undefined
         ? { featuredOnHome: Boolean(body.featuredOnHome) }
+        : {}),
+      ...(body.countdownUntil !== undefined
+        ? { countdownUntil: body.countdownUntil ? new Date(body.countdownUntil) : null }
         : {}),
       ...(body.sortOrder !== undefined
         ? { sortOrder: Number(body.sortOrder) }
         : {}),
     },
   });
+
+  // Launch: upcoming → current fires the "notify me" blast once, then clears
+  // the signups so re-saving the drop can't double-send.
+  if (existing?.status === "upcoming" && updated.status === "current") {
+    const signups = await prisma.dropNotifySignup.findMany({
+      where: { dropId: id },
+    });
+    if (signups.length > 0) {
+      const url = `${new URL(c.req.url).origin}/drops`;
+      await Promise.allSettled(
+        signups.map((s) =>
+          mailer.send(s.email, "drop_live", { dropName: updated.name, url }),
+        ),
+      );
+      await prisma.dropNotifySignup.deleteMany({ where: { dropId: id } });
+    }
+  }
   return c.json({ ok: true });
 });
 
