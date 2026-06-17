@@ -9,10 +9,30 @@ import { InstagramEmbed } from "@/components/site/instagram-embed";
 export function CommunityInstagram({ url }: { url: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+  // Defer mounting the heavy Instagram iframe until the card nears the viewport.
+  // Mounting every embed eagerly made all the iframes load at once on scroll-in,
+  // which janked the whole community section.
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || mounted) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setMounted(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "400px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [mounted]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !mounted) return;
     let done = false;
     const finish = () => {
       if (done) return;
@@ -42,13 +62,13 @@ export function CommunityInstagram({ url }: { url: string }) {
       obs.disconnect();
       window.clearTimeout(fallback);
     };
-  }, [url]);
+  }, [url, mounted]);
 
   return (
     <div ref={ref} className="relative h-full w-full">
       {/* No caption passed → the loading fallback never flashes the caption text
           (the caption is shown below the card instead). */}
-      <InstagramEmbed url={url} />
+      {mounted && <InstagramEmbed url={url} />}
       {ready && (
         <>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white via-white/95 to-transparent" />
