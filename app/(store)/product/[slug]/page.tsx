@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PdpClient } from "@/components/product/pdp-client";
 import { ProductCard } from "@/components/site/product-card";
-import { activeProducts, isSoldOut, toCardProduct } from "@/lib/catalog";
+import { activeProducts, isSoldOut, isUpcoming, toCardProduct } from "@/lib/catalog";
 import { prisma } from "@/lib/db";
+import { getSetting } from "@/lib/settings";
 import { toSen } from "@/lib/money";
 import { getDefaultSizeGuide, resolveSizeGuide } from "@/lib/size-guide";
 
@@ -53,6 +54,7 @@ export default async function ProductPage({
     product.sizeGuide,
     await getDefaultSizeGuide(),
   );
+  const notifyEnabled = await getSetting("emailDropLaunch");
 
   const related = (
     await activeProducts({
@@ -78,6 +80,11 @@ export default async function ProductPage({
           isNew: product.isNew,
           isLimited: product.isLimited,
           soldOut: isSoldOut(product),
+          upcoming: isUpcoming(product),
+          countdownUntil: product.drop?.countdownUntil
+            ? product.drop.countdownUntil.toISOString()
+            : null,
+          dropId: product.dropId,
           images: product.images.map((img) => ({
             url: img.imageUrl,
             alt: img.alt ?? product.name,
@@ -90,6 +97,7 @@ export default async function ProductPage({
           })),
         }}
         sizeGuide={sizeGuide}
+        notifyEnabled={notifyEnabled}
       />
 
       {fallback.length > 0 && (

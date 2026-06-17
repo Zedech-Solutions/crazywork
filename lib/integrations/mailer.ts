@@ -9,6 +9,7 @@ const TEMPLATE_SETTING: Record<MailTemplate, SettingKey> = {
   password_reset: "emailPasswordReset",
   order_confirmation: "emailOrderConfirmation",
   order_status_change: "emailOrderStatusChange",
+  drop_live: "emailDropLaunch",
 };
 
 export interface SentMail {
@@ -115,6 +116,17 @@ function renderTemplate(
            <p>Here's your first-order discount code:</p>
            <p style="font-size:26px;font-weight:bold;letter-spacing:3px;background:#f0e8dc;padding:12px 16px;display:inline-block">${esc(data.code)}</p>
            <p>Use it at checkout.</p>`,
+        ),
+      };
+    }
+    case "drop_live": {
+      const url = esc(data.url);
+      return {
+        subject: `${esc(data.dropName)} just dropped — ${STORE}`,
+        html: shell(
+          `<h1 style="font-size:22px">It's live</h1>
+           <p><strong>${esc(data.dropName)}</strong> just dropped. Limited runs — get in before it's gone.</p>
+           <p><a href="${url}" style="background:#d45c00;color:#faefe0;text-decoration:none;padding:12px 24px;display:inline-block;font-weight:bold">Shop the drop</a></p>`,
         ),
       };
     }

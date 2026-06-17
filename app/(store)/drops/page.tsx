@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
+import { CountdownTimer } from "@/components/site/countdown-timer";
+import { DropTeaser } from "@/components/site/drop-teaser";
+import { NotifyMe } from "@/components/site/notify-me";
 import { ProductCard } from "@/components/site/product-card";
 import { Reveal } from "@/components/site/reveal";
 import { Badge } from "@/components/ui/field";
 import { toCardProduct } from "@/lib/catalog";
 import { getDropsContent } from "@/lib/content";
 import { prisma } from "@/lib/db";
+import { getSetting } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +20,7 @@ export const metadata: Metadata = {
 
 const STATUS_BADGE: Record<string, { label: string; tone: "ember" | "sand" | "ink" }> =
   {
+    upcoming: { label: "Upcoming", tone: "ember" },
     current: { label: "Live now", tone: "ember" },
     past: { label: "Past drop", tone: "sand" },
     soldout: { label: "Sold out", tone: "ink" },
@@ -33,9 +38,11 @@ export default async function DropsPage() {
   });
   const ordered = [
     ...drops.filter((d) => d.status === "current"),
-    ...drops.filter((d) => d.status !== "current"),
+    ...drops.filter((d) => d.status === "upcoming"),
+    ...drops.filter((d) => d.status !== "current" && d.status !== "upcoming"),
   ];
   const content = await getDropsContent();
+  const notifyEnabled = await getSetting("emailDropLaunch");
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -47,14 +54,30 @@ export default async function DropsPage() {
         const archived = drop.status !== "current";
         return (
           <section key={drop.id} className="mt-14">
-            <div className="flex items-center gap-3 border-b border-warmgrey pb-3">
+            <div className="flex flex-wrap items-center gap-3 border-b border-warmgrey pb-3">
               <h2 className="headline text-4xl">{drop.name}</h2>
               <Badge tone={badge.tone}>{badge.label}</Badge>
+              {drop.countdownUntil &&
+                drop.countdownUntil.getTime() > Date.now() && (
+                  <CountdownTimer
+                    until={drop.countdownUntil.toISOString()}
+                    label="Starts in"
+                  />
+                )}
             </div>
+            {drop.status === "upcoming" && notifyEnabled && (
+              <div className="mt-4">
+                <NotifyMe dropId={drop.id} dropName={drop.name} />
+              </div>
+            )}
             {drop.products.length === 0 ? (
-              <p className="py-10 text-sm text-warmgrey">
-                Pieces from this drop are no longer listed.
-              </p>
+              drop.status === "upcoming" ? (
+                <DropTeaser />
+              ) : (
+                <p className="py-10 text-sm text-warmgrey">
+                  Pieces from this drop are no longer listed.
+                </p>
+              )
             ) : (
               <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
                 {drop.products.map((product, i) => {

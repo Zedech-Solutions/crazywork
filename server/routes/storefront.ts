@@ -12,7 +12,7 @@ import {
   type CheckoutItemInput,
   type ShippingZone,
 } from "@/lib/orders";
-import { getSettings } from "@/lib/settings";
+import { getSetting, getSettings } from "@/lib/settings";
 import { toSen } from "@/lib/money";
 import { renderUpsellMessage } from "@/lib/upsell";
 
@@ -202,6 +202,30 @@ storefront.post("/subscribe", async (c) => {
     used: record.used,
     alreadyClaimed: !isNew,
   });
+});
+
+// "Notify me" capture for an upcoming drop — emailed once when it launches.
+storefront.post("/drops/:id/notify", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json().catch(() => ({}));
+  const email =
+    typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!/.+@.+\..+/.test(email)) {
+    return c.json({ ok: false, message: "Enter a valid email." }, 400);
+  }
+  if (!(await getSetting("emailDropLaunch"))) {
+    return c.json({ ok: false, message: "Launch notifications are turned off." }, 400);
+  }
+  const drop = await prisma.drop.findUnique({ where: { id } });
+  if (!drop || drop.status !== "upcoming") {
+    return c.json({ ok: false, message: "This drop isn't taking signups." }, 400);
+  }
+  await prisma.dropNotifySignup.upsert({
+    where: { dropId_email: { dropId: id, email } },
+    create: { dropId: id, email },
+    update: {},
+  });
+  return c.json({ ok: true });
 });
 
 // Guest order lookup: order number + email must both match.

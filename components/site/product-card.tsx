@@ -19,6 +19,8 @@ export interface CardProduct {
   isNew: boolean;
   isLimited: boolean;
   soldOut: boolean;
+  /** belongs to a drop that hasn't launched — not purchasable */
+  upcoming: boolean;
   /** present when exactly one in-stock variant exists → direct add-to-cart */
   singleVariant: {
     variantId: string;
@@ -86,14 +88,19 @@ export function ProductCard({
           />
         )}
         <div className="absolute left-2 top-2 flex flex-col gap-1.5">
-          {product.isNew && <Badge tone="ember">New</Badge>}
+          {product.upcoming && <Badge tone="ember">Upcoming</Badge>}
+          {product.isNew && !product.upcoming && <Badge tone="ember">New</Badge>}
           {product.isLimited && <Badge tone="ink">Limited</Badge>}
         </div>
         <WishlistButton
           productId={product.productId}
           className="absolute right-2 top-2 z-10 h-8 w-8 rounded-full bg-peach/85 text-ink backdrop-blur hover:bg-peach"
         />
-        {product.soldOut ? (
+        {product.upcoming ? (
+          <div className="absolute inset-x-0 bottom-0 bg-ink/85 py-2.5 text-center subhead text-sm text-ember">
+            Upcoming
+          </div>
+        ) : product.soldOut ? (
           <div className="absolute inset-x-0 bottom-0 bg-ink/85 py-2.5 text-center subhead text-sm text-warmgrey">
             Sold Out
           </div>

@@ -18,7 +18,8 @@ export type MailTemplate =
   | "order_confirmation"
   | "order_status_change"
   | "welcome_code"
-  | "password_reset";
+  | "password_reset"
+  | "drop_live";
 
 export interface Mailer {
   send(
