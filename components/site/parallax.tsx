@@ -1,7 +1,12 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "framer-motion";
 import { cn } from "@/lib/utils";
 
 // Element-scroll parallax background. Place inside a `relative overflow-hidden`
@@ -17,6 +22,7 @@ export function Parallax({
   amount?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start end", "end start"],
@@ -26,7 +32,7 @@ export function Parallax({
   return (
     <div ref={ref} className={cn("absolute inset-0 overflow-hidden", className)}>
       <motion.div
-        style={{ y }}
+        style={reduceMotion ? undefined : { y }}
         className="absolute -inset-y-[16%] inset-x-0 will-change-transform"
       >
         {children}
