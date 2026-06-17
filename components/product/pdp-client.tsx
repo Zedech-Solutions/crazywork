@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { ColourDropdown } from "@/components/product/colour-dropdown";
 import { SizeGuide } from "@/components/site/size-guide";
 import { useCart } from "@/components/cart/cart-context";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
@@ -274,24 +275,17 @@ export function PdpClient({
                 );
               })}
             </div>
-            {/* colour — dropdown keeps long names readable without overflow */}
+            {/* colour — custom themed dropdown (matches the glassy bar) */}
             {colours.length > 0 && (
-              <select
+              <ColourDropdown
                 value={colour}
-                onChange={(e) => setColour(e.target.value)}
-                aria-label="Colour"
-                className="h-8 min-w-0 max-w-[10rem] shrink rounded-full bg-white/40 px-3 subhead text-xs text-ink transition-colors cursor-pointer hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-ink/30"
-              >
-                {colours.map((c) => {
-                  const available = stockFor(size, c) > 0;
-                  return (
-                    <option key={c} value={c}>
-                      {c}
-                      {!available ? " — Sold out" : ""}
-                    </option>
-                  );
-                })}
-              </select>
+                onChange={setColour}
+                options={colours.map((c) => ({
+                  value: c,
+                  available: stockFor(size, c) > 0,
+                }))}
+                className="w-36 max-w-[calc(100vw-2rem)] shrink"
+              />
             )}
           </div>
 
