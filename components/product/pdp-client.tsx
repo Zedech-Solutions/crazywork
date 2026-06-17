@@ -244,17 +244,17 @@ export function PdpClient({
             : "pointer-events-none translate-y-[160%] opacity-0",
         )}
       >
-        <div className="flex flex-col gap-3 rounded-[1.75rem] border border-white/50 bg-peach/55 px-4 py-3 shadow-[0_12px_44px_rgba(26,26,26,0.22)] backdrop-blur-2xl sm:flex-row sm:items-center sm:gap-5 sm:px-5">
-          <div className="min-w-0">
+        <div className="flex max-w-[calc(100vw-1.5rem)] flex-col gap-3 rounded-[1.75rem] border border-white/50 bg-peach/55 px-4 py-3 shadow-[0_12px_44px_rgba(26,26,26,0.22)] backdrop-blur-2xl sm:flex-row sm:items-center sm:gap-5 sm:px-5">
+          <div className="min-w-0 shrink-0 sm:max-w-[11rem]">
             <p className="subhead truncate text-sm leading-none">{product.name}</p>
             <p className="mt-1 text-sm font-bold leading-none">
               {formatRM(product.basePriceSen)}
             </p>
           </div>
 
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
             {/* size */}
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               {sizes.map((s) => {
                 const available = colours.some((c) => stockFor(s, c) > 0);
                 return (
@@ -262,7 +262,7 @@ export function PdpClient({
                     key={s}
                     onClick={() => setSize(s)}
                     className={cn(
-                      "h-8 min-w-8 rounded-full px-2 subhead text-xs transition-colors cursor-pointer",
+                      "h-8 min-w-8 shrink-0 whitespace-nowrap rounded-full px-2 subhead text-xs transition-colors cursor-pointer",
                       size === s
                         ? "bg-ink text-peach"
                         : "bg-white/40 text-ink hover:bg-white/70",
@@ -274,34 +274,32 @@ export function PdpClient({
                 );
               })}
             </div>
-            {/* colour */}
-            <div className="flex items-center gap-1">
-              {colours.map((c) => {
-                const available = stockFor(size, c) > 0;
-                return (
-                  <button
-                    key={c}
-                    onClick={() => setColour(c)}
-                    className={cn(
-                      "h-8 rounded-full px-3 subhead text-xs transition-colors cursor-pointer",
-                      colour === c
-                        ? "bg-ink text-peach"
-                        : "bg-white/40 text-ink hover:bg-white/70",
-                      !available && "opacity-35 line-through",
-                    )}
-                  >
-                    {c}
-                  </button>
-                );
-              })}
-            </div>
+            {/* colour — dropdown keeps long names readable without overflow */}
+            {colours.length > 0 && (
+              <select
+                value={colour}
+                onChange={(e) => setColour(e.target.value)}
+                aria-label="Colour"
+                className="h-8 min-w-0 max-w-[10rem] shrink rounded-full bg-white/40 px-3 subhead text-xs text-ink transition-colors cursor-pointer hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-ink/30"
+              >
+                {colours.map((c) => {
+                  const available = stockFor(size, c) > 0;
+                  return (
+                    <option key={c} value={c}>
+                      {c}
+                      {!available ? " — Sold out" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
           </div>
 
           <Button
             variant="accent"
             disabled={soldOut}
             onClick={addToCart}
-            className="rounded-full sm:ml-1"
+            className="shrink-0 rounded-full sm:ml-1"
           >
             {soldOut ? "Sold Out" : "Add to Cart"}
           </Button>
