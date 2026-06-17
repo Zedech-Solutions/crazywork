@@ -24,6 +24,9 @@ export function CommunityCard({
       <div
         className={cn(
           "relative h-[520px] w-full overflow-hidden rounded-2xl border border-warmgrey/40 shadow-sm",
+          // Skip layout/paint for cards that are offscreen on this long media
+          // grid; the intrinsic size keeps the scrollbar stable.
+          "[content-visibility:auto] [contain-intrinsic-size:auto_520px]",
           item.postUrl ? "bg-white" : "bg-ink",
         )}
       >
