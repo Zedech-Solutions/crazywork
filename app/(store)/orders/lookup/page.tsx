@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Badge } from "@/components/ui/field";
 import { formatRM, toSen } from "@/lib/money";
@@ -30,20 +31,23 @@ const STATUS_TONE: Record<string, "ember" | "ink" | "sand" | "outline"> = {
   cancelled: "sand",
 };
 
-export default function OrderLookupPage() {
-  const [orderNumber, setOrderNumber] = useState("");
-  const [email, setEmail] = useState("");
+function OrderLookup() {
+  const params = useSearchParams();
+  const [orderNumber, setOrderNumber] = useState(
+    params.get("orderNumber")?.toUpperCase().trim() ?? "",
+  );
+  const [email, setEmail] = useState(params.get("email") ?? "");
   const [order, setOrder] = useState<LookupOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function lookup(e: React.FormEvent) {
-    e.preventDefault();
+  const runLookup = useCallback(async (orderNo: string, mail: string) => {
+    if (!orderNo || !mail) return;
     setBusy(true);
     setError(null);
     setOrder(null);
     try {
-      const query = new URLSearchParams({ orderNumber, email });
+      const query = new URLSearchParams({ orderNumber: orderNo, email: mail });
       const res = await fetch(`/api/orders/lookup?${query}`);
       const body = await res.json();
       if (body.ok) setOrder(body.order);
@@ -53,6 +57,18 @@ export default function OrderLookupPage() {
     } finally {
       setBusy(false);
     }
+  }, []);
+
+  // Auto-run when arriving from a "Track this order" link (both params present).
+  useEffect(() => {
+    const o = params.get("orderNumber")?.toUpperCase().trim();
+    const m = params.get("email");
+    if (o && m) runLookup(o, m);
+  }, [params, runLookup]);
+
+  function lookup(e: React.FormEvent) {
+    e.preventDefault();
+    runLookup(orderNumber, email);
   }
 
   return (
@@ -126,5 +142,13 @@ export default function OrderLookupPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OrderLookupPage() {
+  return (
+    <Suspense fallback={null}>
+      <OrderLookup />
+    </Suspense>
   );
 }

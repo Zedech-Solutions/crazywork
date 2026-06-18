@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { Plus, Trash2, X } from "lucide-react";
+import { GripVertical, Plus, Trash2, X } from "lucide-react";
 import { adminFetch, uploadFile } from "@/components/admin/api";
 import { useConfirm } from "@/components/admin/confirm";
 import { SizeGuideEditor } from "@/components/admin/size-guide-editor";
@@ -104,6 +104,7 @@ export default function AdminProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const confirm = useConfirm();
 
   const pageCount = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
@@ -234,6 +235,17 @@ export default function AdminProductsPage() {
   const set = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) =>
     setEditing((f) => (f ? { ...f, [key]: value } : f));
 
+  // Drag-and-drop reordering of variant rows. The new order is held in form
+  // state and persisted (as sortOrder) when the product is saved.
+  function reorderVariant(overIndex: number) {
+    if (!editing || dragIndex === null || dragIndex === overIndex) return;
+    const next = [...editing.variants];
+    const [moved] = next.splice(dragIndex, 1);
+    next.splice(overIndex, 0, moved);
+    set("variants", next);
+    setDragIndex(overIndex);
+  }
+
   if (editing) {
     return (
       <div className="max-w-3xl">
@@ -361,8 +373,13 @@ export default function AdminProductsPage() {
                 <Plus size={14} /> Variant
               </Button>
             </div>
+            <p className="mt-1 text-[11px] text-warmgrey">
+              Drag the handle to set the order. The arrangement is saved with the
+              product.
+            </p>
             <div className="mt-3 space-y-3 sm:space-y-2">
-              <div className="hidden gap-2 eyebrow text-brown sm:grid sm:grid-cols-[1fr_1fr_80px_1fr_100px_32px]">
+              <div className="hidden gap-2 eyebrow text-brown sm:grid sm:grid-cols-[20px_1fr_1fr_80px_1fr_100px_32px]">
+                <span />
                 <span>Size</span>
                 <span>Colour</span>
                 <span>Stock</span>
@@ -373,8 +390,26 @@ export default function AdminProductsPage() {
               {editing.variants.map((variant, i) => (
                 <div
                   key={i}
-                  className="grid grid-cols-2 items-center gap-2 rounded-lg border border-warmgrey/40 bg-sand/20 p-2 sm:grid-cols-[1fr_1fr_80px_1fr_100px_32px] sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0"
+                  onDragEnter={() => reorderVariant(i)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragIndex(null);
+                  }}
+                  className={`grid grid-cols-2 items-center gap-2 rounded-lg border border-warmgrey/40 bg-sand/20 p-2 sm:grid-cols-[20px_1fr_1fr_80px_1fr_100px_32px] sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 ${
+                    dragIndex === i ? "opacity-50" : ""
+                  }`}
                 >
+                  <button
+                    type="button"
+                    aria-label="Drag to reorder"
+                    draggable
+                    onDragStart={() => setDragIndex(i)}
+                    onDragEnd={() => setDragIndex(null)}
+                    className="hidden cursor-grab text-warmgrey hover:text-ink active:cursor-grabbing sm:flex"
+                  >
+                    <GripVertical size={15} />
+                  </button>
                   <Input
                     placeholder="Size"
                     value={variant.size}

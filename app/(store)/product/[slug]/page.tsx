@@ -14,7 +14,7 @@ async function getProduct(slug: string) {
   return prisma.product.findFirst({
     where: { slug, status: "active" },
     include: {
-      variants: true,
+      variants: { orderBy: { sortOrder: "asc" } },
       images: { orderBy: { sortOrder: "asc" } },
       drop: true,
     },

@@ -44,6 +44,7 @@ export default function CheckoutPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [upsell, setUpsell] = useState<string | null>(null);
   const [upsellPercent, setUpsellPercent] = useState<number | null>(null);
+  const [loginPrompt, setLoginPrompt] = useState(false);
   const upsellShown = useRef(false);
   const hydrated = useRef(false);
 
@@ -274,7 +275,13 @@ export default function CheckoutPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => refreshQuote(code.trim() || null)}
+                onClick={() => {
+                  if (!session?.user) {
+                    setLoginPrompt(true);
+                    return;
+                  }
+                  refreshQuote(code.trim() || null);
+                }}
               >
                 Apply
               </Button>
@@ -373,6 +380,28 @@ export default function CheckoutPage() {
               }}
             >
               Continue to checkout →
+            </Button>
+          </div>
+        </DialogContent>
+      </DialogPrimitive.Root>
+
+      {/* LOG-IN PROMPT — codes are tied to an account, so guests sign in first */}
+      <DialogPrimitive.Root open={loginPrompt} onOpenChange={setLoginPrompt}>
+        <DialogContent aria-describedby={undefined}>
+          <p className="eyebrow text-ember">One step first</p>
+          <DialogTitle className="headline mt-2 text-4xl">
+            Log in to use a code.
+          </DialogTitle>
+          <p className="mt-3 text-sm text-brown">
+            Discount codes are locked to your account. Sign in and we&apos;ll
+            bring you right back to your checkout.
+          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <Button asChild variant="outline" className="flex-1">
+              <Link href="/auth/sign-up?redirect=/checkout">Create account</Link>
+            </Button>
+            <Button asChild variant="accent" className="flex-1">
+              <Link href="/auth/sign-in?redirect=/checkout">Sign in →</Link>
             </Button>
           </div>
         </DialogContent>

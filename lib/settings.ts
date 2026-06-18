@@ -17,6 +17,16 @@ export const SETTING_DEFAULTS = {
   stripeMode: "test" as "test" | "live",
   showTestOrders: false, // surface Stripe test-mode orders in admin + Discord
   popupDelaySeconds: 6,
+
+  // Email popup (first-purchase code capture). `{percent}` in the copy is
+  // replaced with emailPopupPercentage, which also sets the issued code's value.
+  emailPopupEnabled: true,
+  emailPopupPercentage: 10,
+  emailPopupEyebrow: "First purchase",
+  emailPopupHeadline: "{percent}% off. Earned by showing up.",
+  emailPopupBody:
+    "Drop your email — we'll send a single-use code locked to you. No spam, just drops.",
+
   preCheckoutUpsellEnabled: true,
   preCheckoutUpsellTemplate:
     "Almost there! Add {n} more and save {percent}% on your cart",

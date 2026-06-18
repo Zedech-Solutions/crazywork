@@ -132,6 +132,7 @@ model ProductVariant {
   stock     Int     @default(0)
   sku       String? @unique
   costPrice Decimal? @db.Decimal(10, 2) // optional, feeds margin preview only
+  sortOrder Int     @default(0) // admin drag-and-drop arrangement
 
   @@unique([productId, size, colour])
 }

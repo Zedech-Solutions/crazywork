@@ -24,7 +24,15 @@ export default async function StoreLayout({
       <main className="min-h-[70vh]">{children}</main>
       <Footer />
       <CartDrawer />
-      <EmailPopup delaySeconds={settings.popupDelaySeconds} />
+      {settings.emailPopupEnabled && (
+        <EmailPopup
+          delaySeconds={settings.popupDelaySeconds}
+          percentage={settings.emailPopupPercentage}
+          eyebrow={settings.emailPopupEyebrow}
+          headline={settings.emailPopupHeadline}
+          body={settings.emailPopupBody}
+        />
+      )}
       </WishlistProvider>
     </CartProvider>
   );

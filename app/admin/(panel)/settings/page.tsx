@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Badge, Input, Label } from "@/components/ui/field";
+import { Badge, Input, Label, Textarea } from "@/components/ui/field";
 import type { Settings } from "@/lib/settings";
 import { DEFAULT_SIZE_GUIDE, type SizeGuideTable } from "@/lib/size-guide";
 
@@ -38,6 +38,9 @@ const SECRET_LABELS: Record<string, string> = {
 };
 
 type StripeMode = "test" | "live";
+
+const withPercent = (text: string, pct: number) =>
+  text.replace(/\{percent\}/g, String(pct));
 
 // A setup step shown in the "How to connect" dialog. `code` is rendered as a
 // command block; the "{origin}" token is swapped for the live dashboard origin
@@ -590,14 +593,116 @@ export default function AdminSettingsPage() {
                 onChange={(e) => set("ssmNumber", e.target.value)}
               />
             </div>
-            <div>
-              <Label>Email popup delay (seconds)</Label>
-              <Input
-                type="number"
-                min="0"
-                value={settings.popupDelaySeconds}
-                onChange={(e) => set("popupDelaySeconds", Number(e.target.value))}
-              />
+          </div>
+
+          <div className="mt-6 rounded-xl border border-warmgrey/60 bg-sand/40 p-4">
+            <CheckboxField
+              label="Show email popup"
+              checked={settings.emailPopupEnabled}
+              onCheckedChange={(v) => set("emailPopupEnabled", v)}
+            />
+            <p className="mt-1 text-[11px] text-warmgrey">
+              The first-purchase code popup. Turning this off hides it for all
+              visitors. Use <code>{"{percent}"}</code> in the copy to insert the
+              discount below.
+            </p>
+            <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_22rem]">
+              <div className="space-y-4">
+                <div className="space-y-4">
+                  <div>
+                    <Label>Discount (%)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={settings.emailPopupPercentage}
+                      onChange={(e) =>
+                        set(
+                          "emailPopupPercentage",
+                          Math.max(0, Math.min(100, Math.floor(Number(e.target.value)))),
+                        )
+                      }
+                    />
+                    <p className="mt-1 text-[11px] text-warmgrey">
+                      Sets the value of every newly issued first-purchase code.
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Delay before showing (seconds)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={settings.popupDelaySeconds}
+                      onChange={(e) =>
+                        set("popupDelaySeconds", Number(e.target.value))
+                      }
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Eyebrow</Label>
+                  <Input
+                    value={settings.emailPopupEyebrow}
+                    onChange={(e) => set("emailPopupEyebrow", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Headline</Label>
+                  <Input
+                    value={settings.emailPopupHeadline}
+                    onChange={(e) => set("emailPopupHeadline", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Body</Label>
+                  <Textarea
+                    rows={2}
+                    value={settings.emailPopupBody}
+                    onChange={(e) => set("emailPopupBody", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Live preview — mirrors the storefront popup */}
+              <div className="h-fit">
+                <p className="eyebrow text-warmgrey">Preview</p>
+                <div className="mt-2 rounded-xl bg-ink/90 p-5">
+                  <div className="border border-ink bg-peach p-6 shadow-[6px_6px_0_0_#1a1a1a]">
+                    <p className="eyebrow text-ember">
+                      {settings.emailPopupEyebrow || "First purchase"}
+                    </p>
+                    <p className="headline mt-1 text-3xl text-ink">
+                      {withPercent(
+                        settings.emailPopupHeadline,
+                        settings.emailPopupPercentage,
+                      )}
+                    </p>
+                    <p className="mt-3 text-sm text-brown">
+                      {withPercent(
+                        settings.emailPopupBody,
+                        settings.emailPopupPercentage,
+                      )}
+                    </p>
+                    <div className="mt-5 flex gap-2">
+                      <Input
+                        type="email"
+                        placeholder="you@email.com"
+                        readOnly
+                        tabIndex={-1}
+                        className="pointer-events-none"
+                      />
+                      <Button
+                        type="button"
+                        variant="accent"
+                        tabIndex={-1}
+                        className="pointer-events-none shrink-0"
+                      >
+                        Get code
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
