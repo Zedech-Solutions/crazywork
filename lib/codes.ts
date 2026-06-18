@@ -1,10 +1,12 @@
 import type { DiscountCode } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { generateCampaignCode, generateCode } from "@/lib/promoCode";
+import { getSetting } from "@/lib/settings";
 
-// One 10% first-purchase code per email. Returns the code plus `isNew` — true
-// only the first time it's issued — so the welcome email fires exactly once
-// per email, whichever trigger (signup or popup) gets there first.
+// One first-purchase code per email, at the admin-configured percentage.
+// Returns the code plus `isNew` — true only the first time it's issued — so the
+// welcome email fires exactly once per email, whichever trigger (signup or
+// popup) gets there first.
 export async function issueCodeForEmail(
   email: string,
   source: "popup" | "signup",
@@ -14,11 +16,12 @@ export async function issueCodeForEmail(
     where: { issuedEmail: normalized },
   });
   if (existing) return { record: existing, isNew: false };
+  const percentage = await getSetting("emailPopupPercentage");
   const record = await prisma.discountCode.create({
     data: {
       code: generateCode(),
       issuedEmail: normalized,
-      percentage: 10,
+      percentage,
       source,
     },
   });

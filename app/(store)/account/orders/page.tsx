@@ -59,7 +59,15 @@ export default function AccountOrdersPage() {
           ← Account
         </Link>
       </p>
-      <h1 className="headline mt-1 text-6xl">My Orders</h1>
+      <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+        <h1 className="headline text-6xl">My Orders</h1>
+        <Link
+          href="/orders/lookup"
+          className="border border-ink px-4 py-2 text-xs font-bold uppercase tracking-[0.15em] text-ink hover:bg-ink hover:text-peach"
+        >
+          Track my order
+        </Link>
+      </div>
 
       {orders === null ? (
         <p className="mt-8 text-sm text-brown">Loading…</p>
@@ -109,6 +117,14 @@ export default function AccountOrdersPage() {
                   </span>
                 </p>
               )}
+              <Link
+                href={`/orders/lookup?orderNumber=${encodeURIComponent(
+                  order.orderNumber,
+                )}&email=${encodeURIComponent(session.user.email)}`}
+                className="mt-3 inline-block text-xs font-bold uppercase tracking-[0.15em] text-ember hover:underline"
+              >
+                Track this order →
+              </Link>
             </li>
           ))}
         </ul>

@@ -8,7 +8,23 @@ import { Input } from "@/components/ui/field";
 
 const SEEN_KEY = "crazywork-popup-seen";
 
-export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
+interface EmailPopupProps {
+  delaySeconds?: number;
+  percentage?: number;
+  eyebrow?: string;
+  headline?: string;
+  body?: string;
+}
+
+export function EmailPopup({
+  delaySeconds = 6,
+  percentage = 10,
+  eyebrow = "First purchase",
+  headline = "{percent}% off. Earned by showing up.",
+  body = "Drop your email — we'll send a single-use code locked to you. No spam, just drops.",
+}: EmailPopupProps) {
+  const withPercent = (text: string) =>
+    text.replace(/\{percent\}/g, String(percentage));
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState<string | null>(null);
@@ -82,8 +98,8 @@ export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
             </DialogTitle>
             <p className="mt-3 text-sm text-brown">
               {claimed
-                ? "This email already has its 10% first-purchase code:"
-                : "Your 10% first-purchase code — it’s locked to this email:"}
+                ? `This email already has its ${percentage}% first-purchase code:`
+                : `Your ${percentage}% first-purchase code — it’s locked to this email:`}
             </p>
             <button
               className="mt-4 inline-block border border-dashed border-ember px-6 py-3 subhead text-2xl text-ember cursor-pointer"
@@ -100,14 +116,11 @@ export function EmailPopup({ delaySeconds = 6 }: { delaySeconds?: number }) {
           </div>
         ) : (
           <>
-            <p className="eyebrow text-ember">First purchase</p>
+            <p className="eyebrow text-ember">{eyebrow}</p>
             <DialogTitle className="headline mt-1 text-4xl">
-              10% off. Earned by showing up.
+              {withPercent(headline)}
             </DialogTitle>
-            <p className="mt-3 text-sm text-brown">
-              Drop your email — we&apos;ll send a single-use code locked to you.
-              No spam, just drops.
-            </p>
+            <p className="mt-3 text-sm text-brown">{withPercent(body)}</p>
             <form onSubmit={subscribe} className="mt-5 flex gap-2">
               <Input
                 type="email"

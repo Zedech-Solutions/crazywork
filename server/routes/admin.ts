@@ -413,7 +413,7 @@ admin.get("/products", async (c) => {
   const [products, { lowStockThreshold }] = await Promise.all([
     prisma.product.findMany({
       include: {
-        variants: true,
+        variants: { orderBy: { sortOrder: "asc" } },
         images: { orderBy: { sortOrder: "asc" } },
         drop: true,
       },
@@ -455,7 +455,7 @@ type VariantBody = {
   costPrice?: unknown;
 };
 
-function variantData(v: VariantBody) {
+function variantData(v: VariantBody, sortOrder: number) {
   return {
     size: String(v.size ?? "").trim(),
     colour: String(v.colour ?? "").trim(),
@@ -465,6 +465,7 @@ function variantData(v: VariantBody) {
       v.costPrice !== null && v.costPrice !== undefined && v.costPrice !== ""
         ? Number(v.costPrice).toFixed(2)
         : null,
+    sortOrder,
   };
 }
 
@@ -478,7 +479,9 @@ admin.post("/products", async (c) => {
     data: {
       ...data,
       variants: {
-        create: ((body.variants as VariantBody[]) ?? []).map(variantData),
+        create: ((body.variants as VariantBody[]) ?? []).map((v, i) =>
+          variantData(v, i),
+        ),
       },
       images: {
         create: ((body.images as { imageUrl: string; alt?: string }[]) ?? []).map(
@@ -498,7 +501,7 @@ admin.patch("/products/:id", async (c) => {
     await tx.product.update({ where: { id }, data: productData(body) });
     if (Array.isArray(body.variants)) {
       const incoming = (body.variants as (VariantBody & { id?: string })[]).map(
-        (v) => ({ id: v.id, ...variantData(v) }),
+        (v, i) => ({ id: v.id, ...variantData(v, i) }),
       );
       const keepIds = incoming.filter((v) => v.id).map((v) => v.id as string);
       await tx.productVariant.deleteMany({

@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { authClient } from "@/lib/auth-client";
 
-export default function SignUpPage() {
+function safeRedirect(value: string | null): string {
+  return value && value.startsWith("/") && !value.startsWith("//")
+    ? value
+    : "/account";
+}
+
+function SignUp() {
   const router = useRouter();
+  const redirectTo = safeRedirect(useSearchParams().get("redirect"));
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +32,7 @@ export default function SignUpPage() {
       setError(err.message ?? "Sign up failed.");
       setBusy(false);
     } else {
-      router.push("/account");
+      router.push(redirectTo);
       router.refresh();
     }
   }
@@ -61,13 +68,24 @@ export default function SignUpPage() {
           {busy ? "Creating…" : "Create account"}
         </Button>
       </form>
-      <GoogleAuthButton callbackURL="/account" />
+      <GoogleAuthButton callbackURL={redirectTo} />
       <p className="mt-6 text-center text-xs text-brown">
         Already have an account?{" "}
-        <Link href="/auth/sign-in" className="hover:text-ember underline">
+        <Link
+          href={`/auth/sign-in?redirect=${encodeURIComponent(redirectTo)}`}
+          className="hover:text-ember underline"
+        >
           Sign in
         </Link>
       </p>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignUp />
+    </Suspense>
   );
 }

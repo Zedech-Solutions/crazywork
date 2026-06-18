@@ -1,15 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { authClient } from "@/lib/auth-client";
 
-export default function SignInPage() {
+// Only allow same-site relative redirects (e.g. "/checkout"), never an
+// absolute URL pointing off-site.
+function safeRedirect(value: string | null): string {
+  return value && value.startsWith("/") && !value.startsWith("//")
+    ? value
+    : "/account";
+}
+
+function SignIn() {
   const router = useRouter();
+  const redirectTo = safeRedirect(useSearchParams().get("redirect"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +33,7 @@ export default function SignInPage() {
       setError(err.message ?? "Sign in failed.");
       setBusy(false);
     } else {
-      router.push("/account");
+      router.push(redirectTo);
       router.refresh();
     }
   }
@@ -47,15 +56,26 @@ export default function SignInPage() {
           {busy ? "Signing in…" : "Sign in"}
         </Button>
       </form>
-      <GoogleAuthButton callbackURL="/account" />
+      <GoogleAuthButton callbackURL={redirectTo} />
       <div className="mt-6 flex justify-between text-xs text-brown">
         <Link href="/auth/forgot-password" className="hover:text-ember">
           Forgot password?
         </Link>
-        <Link href="/auth/sign-up" className="hover:text-ember">
+        <Link
+          href={`/auth/sign-up?redirect=${encodeURIComponent(redirectTo)}`}
+          className="hover:text-ember"
+        >
           New here? Create account →
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignIn />
+    </Suspense>
   );
 }
