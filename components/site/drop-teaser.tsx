@@ -3,9 +3,8 @@
 // countdown (shown by the caller) carry the launch info.
 export function DropTeaser() {
   return (
-    <div className="mt-6 flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-warmgrey/70 bg-transparent py-20 text-center">
-      <p className="eyebrow text-ember">Coming soon</p>
-      <p className="text-sm text-brown">Dropping soon — stay tuned.</p>
+    <div className="mt-6 flex items-center justify-center rounded-2xl border border-dashed border-warmgrey/70 bg-transparent py-24 text-center">
+      <p className="headline text-6xl text-ember sm:text-7xl">Coming soon</p>
     </div>
   );
 }
