@@ -16,6 +16,22 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
+  // DB-backed rate limiting. In-memory (the default) lives per serverless
+  // instance, so on Vercel it resets on cold starts and over-counts behind the
+  // shared edge — producing intermittent false "Too many requests" 429s. The
+  // database store keeps one consistent counter across all instances.
+  rateLimit: {
+    // Default is production-only; keep it that way (dev stays unthrottled).
+    storage: "database",
+    window: 60,
+    max: 100,
+    customRules: {
+      // Session lookups fire on nearly every page load — keep them generous.
+      "/get-session": { window: 60, max: 1000 },
+      // OAuth involves a couple of round-trips; don't trip on a retry.
+      "/sign-in/social": { window: 60, max: 30 },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {

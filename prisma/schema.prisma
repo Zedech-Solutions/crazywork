@@ -91,6 +91,15 @@ model Verification {
   updatedAt  DateTime @updatedAt
 }
 
+// Better Auth rate-limiter store (db-backed so limits are consistent across
+// serverless instances; in-memory storage resets per lambda and trips false 429s).
+model RateLimit {
+  id          String  @id @default(cuid())
+  key         String? @unique
+  count       Int?
+  lastRequest BigInt?
+}
+
 // ───────────────────────── Catalogue ─────────────────────────
 
 enum ProductStatus {
