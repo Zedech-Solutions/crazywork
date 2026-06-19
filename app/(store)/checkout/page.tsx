@@ -21,7 +21,11 @@ interface Quote {
   total: number;
 }
 
-const FORM_KEY = "crazywork-checkout-form";
+// The cart lives in its own localStorage store (crazywork-cart). This holds the
+// rest of the checkout — delivery form + applied code — so the whole attempt
+// survives a login round-trip.
+const CHECKOUT_KEY = "crazywork-checkout";
+const CHECKOUT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // drop stale saved details after a week
 const UPSELL_KEY = "crazywork-checkout-upsell-seen";
 
 export default function CheckoutPage() {
@@ -47,13 +51,28 @@ export default function CheckoutPage() {
   const [loginPrompt, setLoginPrompt] = useState(false);
   const upsellShown = useRef(false);
   const hydrated = useRef(false);
+  const pendingCode = useRef<string | null>(null);
 
-  // Restore a saved checkout (e.g. after the customer left to add more items)
-  // and remember whether the upsell was already shown this session.
+  // Restore a saved checkout — after leaving to add items, or being sent to log
+  // in before applying a code. localStorage (not sessionStorage) so it survives
+  // the OAuth redirect and a closed tab. A restored code is held in pendingCode
+  // and auto-applied once the user is logged in (guests still can't apply).
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem(FORM_KEY);
-      if (saved) setForm((f) => ({ ...f, ...JSON.parse(saved) }));
+      const saved = localStorage.getItem(CHECKOUT_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const fresh = !parsed.ts || Date.now() - parsed.ts < CHECKOUT_TTL_MS;
+        if (!fresh) {
+          localStorage.removeItem(CHECKOUT_KEY);
+        } else {
+          if (parsed.form) setForm((f) => ({ ...f, ...parsed.form }));
+          if (parsed.code) {
+            setCode(parsed.code);
+            pendingCode.current = parsed.code;
+          }
+        }
+      }
     } catch {
       // ignore corrupt storage
     }
@@ -61,10 +80,14 @@ export default function CheckoutPage() {
     hydrated.current = true;
   }, []);
 
-  // Persist the form so navigating away and back doesn't wipe it.
+  // Persist form + code so navigating away (or logging in) and back keeps them.
   useEffect(() => {
-    if (hydrated.current) sessionStorage.setItem(FORM_KEY, JSON.stringify(form));
-  }, [form]);
+    if (hydrated.current)
+      localStorage.setItem(
+        CHECKOUT_KEY,
+        JSON.stringify({ form, code, ts: Date.now() }),
+      );
+  }, [form, code]);
 
   useEffect(() => {
     if (!session?.user) return;
@@ -129,6 +152,16 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemsKey, zone]);
 
+  // Came back from logging in with a code they'd entered as a guest — apply it
+  // now that they're allowed to. Server re-validates it against their account.
+  useEffect(() => {
+    if (session?.user && pendingCode.current && cart.lines.length > 0) {
+      const c = pendingCode.current;
+      pendingCode.current = null;
+      refreshQuote(c.trim() || null);
+    }
+  }, [session, cart.lines.length, refreshQuote]);
+
   async function placeOrder() {
     setSubmitting(true);
     setSubmitError(null);
@@ -150,7 +183,7 @@ export default function CheckoutPage() {
         setSubmitting(false);
         return;
       }
-      sessionStorage.removeItem(FORM_KEY); // order placed — don't restore it
+      localStorage.removeItem(CHECKOUT_KEY); // order placed — don't restore it
       window.location.href = body.url;
     } catch {
       setSubmitError("Network problem — try again.");
