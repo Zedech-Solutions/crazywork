@@ -44,6 +44,9 @@ export function GoogleAuthButton({
     const { error: err } = await authClient.signIn.social({
       provider: "google",
       callbackURL,
+      // Without this, Better Auth sends brand-new users to its default ("/")
+      // instead of back where they started (e.g. /checkout). Match callbackURL.
+      newUserCallbackURL: callbackURL,
     });
     if (err) {
       setError(err.message ?? "Google sign-in isn't available right now.");
