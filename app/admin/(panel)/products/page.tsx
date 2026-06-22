@@ -105,6 +105,7 @@ export default function AdminProductsPage() {
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [imageDragIndex, setImageDragIndex] = useState<number | null>(null);
   const confirm = useConfirm();
 
   const pageCount = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
@@ -244,6 +245,18 @@ export default function AdminProductsPage() {
     next.splice(overIndex, 0, moved);
     set("variants", next);
     setDragIndex(overIndex);
+  }
+
+  // Drag-and-drop reordering of product images. Array order becomes sortOrder on
+  // save: index 0 is the cover, index 1 is the hover/backside image.
+  function reorderImage(overIndex: number) {
+    if (!editing || imageDragIndex === null || imageDragIndex === overIndex)
+      return;
+    const next = [...editing.images];
+    const [moved] = next.splice(imageDragIndex, 1);
+    next.splice(overIndex, 0, moved);
+    set("images", next);
+    setImageDragIndex(overIndex);
   }
 
   if (editing) {
@@ -497,14 +510,41 @@ export default function AdminProductsPage() {
             <h2 className="subhead text-xl">Images</h2>
             <div className="mt-3 flex flex-wrap gap-3">
               {editing.images.map((img, i) => (
-                <div key={i} className="relative h-28 w-22">
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => setImageDragIndex(i)}
+                  onDragEnd={() => setImageDragIndex(null)}
+                  onDragEnter={() => reorderImage(i)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setImageDragIndex(null);
+                  }}
+                  className={`relative h-28 w-22 cursor-grab active:cursor-grabbing ${
+                    imageDragIndex === i ? "opacity-50" : ""
+                  }`}
+                >
                   <Image
                     src={img.imageUrl}
                     alt={img.alt}
                     fill
                     sizes="88px"
-                    className="object-cover"
+                    className="pointer-events-none object-cover"
                   />
+                  <span className="absolute left-1 top-1 bg-ink/70 p-0.5 text-peach">
+                    <GripVertical size={12} />
+                  </span>
+                  {i === 0 && (
+                    <span className="absolute bottom-1 left-1 bg-ember px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-peach">
+                      Cover
+                    </span>
+                  )}
+                  {i === 1 && (
+                    <span className="absolute bottom-1 left-1 bg-ink px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-peach">
+                      Hover
+                    </span>
+                  )}
                   <button
                     aria-label="Remove image"
                     className="absolute -right-1.5 -top-1.5 bg-ink p-0.5 text-peach hover:bg-red-700 cursor-pointer"
@@ -531,7 +571,8 @@ export default function AdminProductsPage() {
               </label>
             </div>
             <p className="mt-2 text-xs text-warmgrey">
-              Uploads are stored on Cloudflare R2.
+              Drag to reorder — the first image is the cover, the second shows on
+              hover. Uploads are stored on Cloudflare R2.
             </p>
           </section>
 
