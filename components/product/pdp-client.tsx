@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { ColourDropdown } from "@/components/product/colour-dropdown";
@@ -109,7 +110,7 @@ export function PdpClient({
       <div className="grid gap-10 lg:grid-cols-[7fr_5fr]">
         {/* GALLERY */}
         <div>
-          <div className="relative aspect-[4/5] overflow-hidden bg-ink">
+          <div className="group relative aspect-[4/5] overflow-hidden bg-ink">
             {image && (
               <Image
                 src={image.url}
@@ -125,6 +126,33 @@ export function PdpClient({
               {product.isNew && !product.upcoming && <Badge tone="ember">New</Badge>}
               {product.isLimited && <Badge tone="ink">Limited</Badge>}
             </div>
+            {product.images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Previous image"
+                  onClick={() =>
+                    setImageIndex(
+                      (imageIndex - 1 + product.images.length) %
+                        product.images.length,
+                    )
+                  }
+                  className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-peach/85 text-ink opacity-0 backdrop-blur transition hover:bg-peach group-hover:opacity-100 cursor-pointer"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next image"
+                  onClick={() =>
+                    setImageIndex((imageIndex + 1) % product.images.length)
+                  }
+                  className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-peach/85 text-ink opacity-0 backdrop-blur transition hover:bg-peach group-hover:opacity-100 cursor-pointer"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </>
+            )}
           </div>
           {product.images.length > 1 && (
             <div className="mt-3 flex gap-2">
