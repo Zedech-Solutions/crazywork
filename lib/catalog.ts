@@ -38,15 +38,17 @@ export function toCardProduct(product: ProductWithRelations): CardProduct {
   // Upcoming takes precedence over sold-out (an unreleased drop may have zero
   // stock) and disables the quick-add path.
   const soldOut = !upcoming && isSoldOut(product);
+  const sortedImages = [...product.images].sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
   return {
     productId: product.id,
     slug: product.slug,
     name: product.name,
     category: product.category,
     basePriceSen: toSen(product.basePrice),
-    image:
-      [...product.images].sort((a, b) => a.sortOrder - b.sortOrder)[0]
-        ?.imageUrl ?? null,
+    image: sortedImages[0]?.imageUrl ?? null,
+    hoverImage: sortedImages[1]?.imageUrl ?? null,
     isNew: product.isNew,
     isLimited: product.isLimited,
     soldOut,

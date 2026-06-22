@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { Gift } from "lucide-react";
 import { DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -39,6 +40,56 @@ export function EmailPopup({
     return () => clearTimeout(timer);
   }, [delaySeconds]);
 
+  // Swivel: the tag stays pinned to the left edge but pivots on that edge
+  // (rotateY hinged at left center) when the user scrolls — a damped spring
+  // settles it back to flat. Writes transform directly to avoid re-rendering.
+  const tabRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = tabRef.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let angle = 0;
+    let velocity = 0;
+    let lastY = window.scrollY;
+    let raf = 0;
+    let running = false;
+
+    const apply = (a: number) =>
+      (el.style.transform = `perspective(600px) rotateY(${a.toFixed(2)}deg)`);
+
+    const tick = () => {
+      velocity += -0.02 * angle; // spring pull toward flat
+      velocity *= 0.88; // damping
+      angle += velocity;
+      angle = Math.max(-28, Math.min(28, angle));
+      if (Math.abs(angle) < 0.05 && Math.abs(velocity) < 0.05) {
+        apply(0);
+        running = false;
+        return;
+      }
+      apply(angle);
+      raf = requestAnimationFrame(tick);
+    };
+
+    const onScroll = () => {
+      const y = window.scrollY;
+      const dy = y - lastY;
+      lastY = y;
+      velocity += Math.max(-4, Math.min(4, dy * 0.06)); // scroll impulse
+      if (!running) {
+        running = true;
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   function dismiss(value: boolean) {
     setOpen(value);
     if (!value) localStorage.setItem(SEEN_KEY, "1");
@@ -70,8 +121,35 @@ export function EmailPopup({
   }
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={dismiss}>
-      <DialogContent aria-describedby={undefined}>
+    <>
+      <button
+        ref={tabRef}
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Get ${percentage}% off your first purchase`}
+        style={{ transformOrigin: "left center" }}
+        className="group fixed left-0 top-1/2 z-40 flex -translate-y-1/2 items-stretch shadow-[2px_3px_0_rgba(26,26,26,0.28)] will-change-transform"
+      >
+        {/* base ember tab pinned to the edge */}
+        <span className="flex flex-col items-center gap-2 rounded-r-sm bg-ember px-1.5 py-3 text-peach ring-1 ring-ink/15 group-hover:rounded-r-none">
+          <Gift className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="relative block h-12 w-5">
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90 whitespace-nowrap subhead text-sm tracking-[0.12em]">
+              {percentage}% OFF
+            </span>
+          </span>
+        </span>
+        {/* white panel pops out on hover, carrying the rotated CRAZYWORK logo */}
+        <span className="flex w-0 items-center justify-center overflow-hidden rounded-r-sm border border-transparent bg-transparent text-ink transition-[width,border-color,background-color] duration-300 ease-out group-hover:w-9 group-hover:border-ink group-hover:bg-white">
+          <span className="relative block h-[4.5rem] w-5">
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90 whitespace-nowrap subhead text-[11px] tracking-[0.25em]">
+              CRAZYWORK
+            </span>
+          </span>
+        </span>
+      </button>
+      <DialogPrimitive.Root open={open} onOpenChange={dismiss}>
+        <DialogContent aria-describedby={undefined}>
         {code && used ? (
           <div className="text-center">
             <DialogTitle className="headline text-4xl">
@@ -136,7 +214,8 @@ export function EmailPopup({
             {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
           </>
         )}
-      </DialogContent>
-    </DialogPrimitive.Root>
+        </DialogContent>
+      </DialogPrimitive.Root>
+    </>
   );
 }
