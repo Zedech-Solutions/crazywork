@@ -16,6 +16,8 @@ export interface CardProduct {
   category: string | null;
   basePriceSen: number;
   image: string | null;
+  /** second product image (e.g. backside) revealed on hover */
+  hoverImage: string | null;
   isNew: boolean;
   isLimited: boolean;
   soldOut: boolean;
@@ -84,7 +86,24 @@ export function ProductCard({
                 ? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                 : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             }
-            className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            className={cn(
+              "object-cover transition-transform duration-500 group-hover:scale-[1.04]",
+              product.hoverImage &&
+                "transition-opacity group-hover:opacity-0",
+            )}
+          />
+        )}
+        {product.hoverImage && (
+          <Image
+            src={product.hoverImage}
+            alt={`${product.name} — alternate view`}
+            fill
+            sizes={
+              large
+                ? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            }
+            className="object-cover opacity-0 transition-all duration-500 group-hover:scale-[1.04] group-hover:opacity-100"
           />
         )}
         <div className="absolute left-2 top-2 flex flex-col gap-1.5">
