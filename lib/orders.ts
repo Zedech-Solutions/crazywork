@@ -512,16 +512,59 @@ export async function markOrderPaid(
       return { ok: order.status === "paid", alreadyPaid: true };
     }
 
-    // Consume the discount code now (race-safe single-use) — only on a real
-    // payment, so abandoned/failed checkouts don't burn it.
+    // Consume the discount code now — only on a real payment, so abandoned/
+    // failed checkouts don't burn it.
     if (order.discountCodeId) {
-      await tx.discountCode.updateMany({
-        where: { id: order.discountCodeId, used: false },
-        data: {
-          used: true,
-          ...(order.userId ? { lockedUserId: order.userId } : {}),
-        },
+      const dc = await tx.discountCode.findUnique({
+        where: { id: order.discountCodeId },
+        select: { maxRedemptions: true },
       });
+      if (dc?.maxRedemptions != null) {
+        // Shared quota code. Guard A: atomic conditional increment — Postgres
+        // serializes the row update, so the WHERE makes overselling impossible.
+        const inc = await tx.discountCode.updateMany({
+          where: {
+            id: order.discountCodeId,
+            redeemedCount: { lt: dc.maxRedemptions },
+          },
+          data: { redeemedCount: { increment: 1 } },
+        });
+        if (inc.count === 1 && order.userId) {
+          // Guard B: once-per-customer. The @@unique(discountCodeId, userId)
+          // index makes the insert a no-op for a repeat customer (skipDuplicates
+          // avoids throwing inside the transaction).
+          const ins = await tx.discountRedemption.createMany({
+            data: [
+              {
+                discountCodeId: order.discountCodeId,
+                userId: order.userId,
+                orderId: order.id,
+              },
+            ],
+            skipDuplicates: true,
+          });
+          if (ins.count === 0) {
+            // This customer already redeemed (a concurrent second order). Undo
+            // the slot so the repeat doesn't consume quota; the order is honored.
+            await tx.discountCode.updateMany({
+              where: { id: order.discountCodeId },
+              data: { redeemedCount: { decrement: 1 } },
+            });
+          }
+        }
+        // inc.count === 0 → quota already exhausted by a concurrent payment.
+        // The order was already charged the discounted amount, so honor it
+        // without incrementing further (bounded overage, surfaced in admin).
+      } else {
+        // Legacy single-use code (race-safe via WHERE used:false).
+        await tx.discountCode.updateMany({
+          where: { id: order.discountCodeId, used: false },
+          data: {
+            used: true,
+            ...(order.userId ? { lockedUserId: order.userId } : {}),
+          },
+        });
+      }
     }
 
     for (const item of order.items) {

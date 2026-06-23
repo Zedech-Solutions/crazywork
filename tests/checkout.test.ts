@@ -214,6 +214,87 @@ describe("priceCart — shared quota codes", () => {
   });
 });
 
+describe("markOrderPaid — shared quota concurrency", () => {
+  async function makeSharedCode(quota: number) {
+    const code = `${RUN}-Q${quota}`.toUpperCase();
+    const dc = await prisma.discountCode.create({
+      data: {
+        code,
+        issuedEmail: null,
+        percentage: 10,
+        source: "campaign",
+        batchLabel: `${RUN}-shared`,
+        maxRedemptions: quota,
+        redeemedCount: 0,
+      },
+    });
+    return { code, id: dc.id };
+  }
+
+  async function placeForUser(code: string, email: string) {
+    const user = await prisma.user.create({ data: { email } });
+    const placed = await placeOrder({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      customer: customer({ email }),
+      code,
+      userId: user.id,
+    });
+    if (!placed.ok) throw new Error("placement failed");
+    return { userId: user.id, orderNumber: placed.orderNumber };
+  }
+
+  test("cap holds: 5 distinct customers race a quota of 3 → exactly 3 counted, all honored", async () => {
+    const { code, id } = await makeSharedCode(3);
+    const placements = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        placeForUser(code, `${RUN}-race${i}@example.com`),
+      ),
+    );
+
+    const results = await Promise.all(
+      placements.map((p) => markOrderPaid(p.orderNumber)),
+    );
+    expect(results.every((r) => r.ok)).toBe(true);
+
+    const dc = await prisma.discountCode.findUniqueOrThrow({ where: { id } });
+    expect(dc.redeemedCount).toBe(3);
+
+    const rows = await prisma.discountRedemption.count({
+      where: { discountCodeId: id },
+    });
+    expect(rows).toBe(3);
+  });
+
+  test("once-per-customer: same user pays two orders with the code → counted once", async () => {
+    const { code, id } = await makeSharedCode(10);
+    const user = await prisma.user.create({
+      data: { email: `${RUN}-dupe@example.com` },
+    });
+    const place = async () => {
+      const placed = await placeOrder({
+        items: [{ variantId: inStockVariantId, quantity: 1 }],
+        shippingZone: "west",
+        customer: customer({ email: `${RUN}-dupe@example.com` }),
+        code,
+        userId: user.id,
+      });
+      if (!placed.ok) throw new Error("placement failed");
+      return placed.orderNumber;
+    };
+    const [a, b] = [await place(), await place()];
+
+    await Promise.all([markOrderPaid(a), markOrderPaid(b)]);
+
+    const dc = await prisma.discountCode.findUniqueOrThrow({ where: { id } });
+    expect(dc.redeemedCount).toBe(1);
+    const rows = await prisma.discountRedemption.count({
+      where: { discountCodeId: id, userId: user.id },
+    });
+    expect(rows).toBe(1);
+  });
+});
+
 describe("placeOrder → markOrderPaid lifecycle", () => {
   test("order persists with snapshot items and server-computed totals", async () => {
     const placed = await placeOrder({
