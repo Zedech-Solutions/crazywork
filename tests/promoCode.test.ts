@@ -17,6 +17,8 @@ function code(overrides: Partial<DiscountCodeRecord> = {}): DiscountCodeRecord {
     used: false,
     lockedUserId: null,
     expiresAt: null,
+    maxRedemptions: null,
+    redeemedCount: 0,
     ...overrides,
   };
 }
@@ -147,6 +149,66 @@ describe("validatePromoCode", () => {
       now: NOW,
     });
     expect(result).toEqual({ ok: false, reason: "expired" });
+  });
+});
+
+describe("validatePromoCode — shared quota codes", () => {
+  const shared = (overrides: Partial<DiscountCodeRecord> = {}) =>
+    code({ issuedEmail: null, maxRedemptions: 50, redeemedCount: 0, ...overrides });
+
+  test("valid for any signed-in customer with quota remaining", () => {
+    const result = validatePromoCode({
+      record: shared(),
+      email: "anyone@example.com",
+      userId: "user_a",
+      alreadyRedeemedByUser: false,
+      now: NOW,
+    });
+    expect(result).toEqual({ ok: true, lockToUserId: null });
+  });
+
+  test("rejected when the quota is fully redeemed", () => {
+    const result = validatePromoCode({
+      record: shared({ maxRedemptions: 50, redeemedCount: 50 }),
+      email: "anyone@example.com",
+      userId: "user_a",
+      alreadyRedeemedByUser: false,
+      now: NOW,
+    });
+    expect(result).toEqual({ ok: false, reason: "fully_redeemed" });
+  });
+
+  test("rejected when this customer already redeemed it", () => {
+    const result = validatePromoCode({
+      record: shared(),
+      email: "anyone@example.com",
+      userId: "user_a",
+      alreadyRedeemedByUser: true,
+      now: NOW,
+    });
+    expect(result).toEqual({ ok: false, reason: "already_used" });
+  });
+
+  test("respects expiry before quota", () => {
+    const result = validatePromoCode({
+      record: shared({ expiresAt: new Date("2026-06-01T00:00:00Z") }),
+      email: "anyone@example.com",
+      userId: "user_a",
+      alreadyRedeemedByUser: false,
+      now: NOW,
+    });
+    expect(result).toEqual({ ok: false, reason: "expired" });
+  });
+
+  test("a used=true flag is ignored for shared codes (counter is the source of truth)", () => {
+    const result = validatePromoCode({
+      record: shared({ used: true, redeemedCount: 1, maxRedemptions: 50 }),
+      email: "anyone@example.com",
+      userId: "user_a",
+      alreadyRedeemedByUser: false,
+      now: NOW,
+    });
+    expect(result).toEqual({ ok: true, lockToUserId: null });
   });
 });
 

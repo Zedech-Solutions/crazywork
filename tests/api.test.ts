@@ -26,6 +26,9 @@ afterAll(async () => {
   await prisma.discountCode.deleteMany({
     where: { issuedEmail: { contains: RUN } },
   });
+  await prisma.discountCode.deleteMany({
+    where: { batchLabel: { contains: RUN } },
+  });
   await prisma.emailSubscriber.deleteMany({
     where: { email: { contains: RUN } },
   });
@@ -62,6 +65,55 @@ describe("/api/admin/* guard", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(typeof body.orders).toBe("number");
+  });
+});
+
+describe("admin shared codes", () => {
+  test("creates a shared code and lists it with quota + overage", async () => {
+    const headers = await signedInHeaders(
+      `${RUN}-shareadmin@example.com`,
+      "superadmin",
+    );
+    const code = `SHARE${RUN.replace(/\D/g, "")}`;
+
+    const create = await app.request("/api/admin/shared-codes", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code,
+        label: `${RUN}-share`,
+        quota: 25,
+        discountType: "percent",
+        value: 15,
+      }),
+    });
+    expect(create.status).toBe(200);
+    const created = await create.json();
+    expect(created.ok).toBe(true);
+
+    const list = await app.request("/api/admin/shared-codes", { headers });
+    const body = await list.json();
+    const row = body.codes.find((r: { code: string }) => r.code === code);
+    expect(row).toMatchObject({
+      code,
+      quota: 25,
+      redeemed: 0,
+      over: 0,
+      percentage: 15,
+    });
+
+    // A shared code must NOT leak into the per-code batch listing.
+    const batches = await app.request("/api/admin/code-batches", { headers });
+    const batchBody = await batches.json();
+    expect(
+      batchBody.batches.some((b: { label: string }) => b.label === `${RUN}-share`),
+    ).toBe(false);
+
+    const del = await app.request(`/api/admin/shared-codes/${created.id}`, {
+      method: "DELETE",
+      headers,
+    });
+    expect(del.status).toBe(200);
   });
 });
 

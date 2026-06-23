@@ -11,6 +11,8 @@ export interface DiscountCodeRecord {
   used: boolean;
   lockedUserId: string | null;
   expiresAt: Date | string | null;
+  maxRedemptions: number | null; // null = legacy single-use; set = shared quota code
+  redeemedCount: number;
 }
 
 export type PromoRejection =
@@ -18,6 +20,7 @@ export type PromoRejection =
   | "wrong_email"
   | "expired"
   | "already_used"
+  | "fully_redeemed"
   | "locked_to_other_account";
 
 export type PromoValidation =
@@ -29,6 +32,7 @@ export const PROMO_REJECTION_MESSAGES: Record<PromoRejection, string> = {
   wrong_email: "This code isn't linked to your account — it belongs to someone else.",
   expired: "This code has expired.",
   already_used: "This code has already been used.",
+  fully_redeemed: "This code has been fully redeemed.",
   locked_to_other_account: "This code belongs to another account.",
 };
 
@@ -36,6 +40,7 @@ export function validatePromoCode(input: {
   record: DiscountCodeRecord | null;
   email: string;
   userId?: string | null;
+  alreadyRedeemedByUser?: boolean;
   now?: Date;
 }): PromoValidation {
   const { record } = input;
@@ -43,6 +48,22 @@ export function validatePromoCode(input: {
   const userId = input.userId ?? null;
 
   if (!record) return { ok: false, reason: "not_found" };
+
+  // Shared quota code: open to anyone, capped by a redemption count and limited
+  // to one redemption per customer. The `used` boolean and email/account locks
+  // do not apply — the counter and the per-customer guard are authoritative.
+  if (record.maxRedemptions != null) {
+    if (record.expiresAt && now > new Date(record.expiresAt)) {
+      return { ok: false, reason: "expired" };
+    }
+    if (record.redeemedCount >= record.maxRedemptions) {
+      return { ok: false, reason: "fully_redeemed" };
+    }
+    if (input.alreadyRedeemedByUser) {
+      return { ok: false, reason: "already_used" };
+    }
+    return { ok: true, lockToUserId: null };
+  }
 
   // Personal codes are tied to an email; campaign/bulk codes (issuedEmail null)
   // are open to anyone.

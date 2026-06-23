@@ -27,6 +27,19 @@ interface BatchCode {
   redeemedBy: { orderNumber: string; customer: string; email: string } | null;
 }
 
+interface SharedCode {
+  id: string;
+  code: string;
+  label: string | null;
+  quota: number;
+  redeemed: number;
+  over: number;
+  percentage: number;
+  amountOffSen: number | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
 function discountLabel(percentage: number, amountOffSen: number | null) {
   return amountOffSen
     ? `RM${(amountOffSen / 100).toFixed(2)} off`
@@ -64,9 +77,23 @@ export default function AdminCodesPage() {
   const [openLabel, setOpenLabel] = useState<string | null>(null);
   const [codes, setCodes] = useState<BatchCode[]>([]);
 
+  // shared quota codes
+  const [sharedCodes, setSharedCodes] = useState<SharedCode[]>([]);
+  const [sharedCode, setSharedCode] = useState("");
+  const [sharedLabel, setSharedLabel] = useState("");
+  const [sharedQuota, setSharedQuota] = useState("100");
+  const [sharedDiscountType, setSharedDiscountType] = useState<"percent" | "fixed">("percent");
+  const [sharedValue, setSharedValue] = useState("10");
+  const [sharedExpiresAt, setSharedExpiresAt] = useState("");
+  const [sharedCreating, setSharedCreating] = useState(false);
+  const [sharedResult, setSharedResult] = useState<string | null>(null);
+
   const reload = useCallback(() => {
     adminFetch<{ batches: Batch[] }>("/code-batches")
       .then((r) => setBatches(r.batches))
+      .catch((e) => setError(e.message));
+    adminFetch<{ codes: SharedCode[] }>("/shared-codes")
+      .then((r) => setSharedCodes(r.codes))
       .catch((e) => setError(e.message));
   }, []);
   useEffect(reload, [reload]);
@@ -192,6 +219,55 @@ export default function AdminCodesPage() {
     document.body.appendChild(a);
     a.click();
     a.remove();
+  }
+
+  async function createShared() {
+    setSharedCreating(true);
+    setError(null);
+    setSharedResult(null);
+    try {
+      await adminFetch<{ ok: boolean; id: string }>("/shared-codes", {
+        method: "POST",
+        body: JSON.stringify({
+          code: sharedCode,
+          label: sharedLabel,
+          quota: Number(sharedQuota),
+          discountType: sharedDiscountType,
+          value: Number(sharedValue),
+          expiresAt: sharedExpiresAt || null,
+        }),
+      });
+      setSharedResult(`Created shared code “${sharedCode.toUpperCase()}”.`);
+      setSharedCode("");
+      setSharedLabel("");
+      setSharedQuota("100");
+      setSharedValue("10");
+      setSharedExpiresAt("");
+      reload();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSharedCreating(false);
+    }
+  }
+
+  async function removeShared(s: SharedCode) {
+    if (
+      !(await confirm({
+        title: "Delete shared code",
+        message: `Delete “${s.code}”? This can't be undone. Past orders that used it keep their record.`,
+        confirmLabel: "Delete code",
+        danger: true,
+      }))
+    )
+      return;
+    setError(null);
+    try {
+      await adminFetch(`/shared-codes/${s.id}`, { method: "DELETE" });
+      reload();
+    } catch (e) {
+      setError((e as Error).message);
+    }
   }
 
   return (
@@ -472,6 +548,148 @@ export default function AdminCodesPage() {
                   )}
                 </div>
               )}
+            </div>
+          );
+        })}
+      </section>
+
+      {/* SHARED QUOTA CODES */}
+      <section className="mt-12 rounded-2xl border border-warmgrey/60 bg-sand/30 p-5">
+        <h2 className="subhead text-xl">New shared code</h2>
+        <p className="mt-1 text-sm text-brown">
+          One code that everyone uses, capped by a redemption quota. The code is
+          the literal text you type — no per-customer codes are generated. Each
+          customer can redeem it once.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label>Code</Label>
+            <Input
+              placeholder="SUMMER"
+              value={sharedCode}
+              onChange={(e) =>
+                setSharedCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
+              }
+            />
+            <p className="mt-1 text-[11px] text-warmgrey">
+              Letters and numbers only — customers type this exactly.
+            </p>
+          </div>
+          <div>
+            <Label>Campaign name (optional)</Label>
+            <Input
+              placeholder="Summer Launch"
+              value={sharedLabel}
+              onChange={(e) => setSharedLabel(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Quota (max redemptions)</Label>
+            <Input
+              type="number"
+              min={1}
+              value={sharedQuota}
+              onChange={(e) => setSharedQuota(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>Discount</Label>
+              <Dropdown
+                value={sharedDiscountType}
+                onValueChange={(v) =>
+                  setSharedDiscountType(v as "percent" | "fixed")
+                }
+                options={[
+                  { label: "Percentage", value: "percent" },
+                  { label: "Fixed RM", value: "fixed" },
+                ]}
+              />
+            </div>
+            <div>
+              <Label>{sharedDiscountType === "percent" ? "% off" : "RM off"}</Label>
+              <Input
+                type="number"
+                min={1}
+                step={sharedDiscountType === "percent" ? 1 : 0.01}
+                value={sharedValue}
+                onChange={(e) => setSharedValue(e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Expires (optional)</Label>
+            <Input
+              type="date"
+              value={sharedExpiresAt}
+              onChange={(e) => setSharedExpiresAt(e.target.value)}
+            />
+          </div>
+        </div>
+        <p className="mt-3 text-[11px] text-warmgrey">
+          Quota is enforced when an order is paid. If several customers are paying
+          at the exact moment the last slot is taken, those already-charged orders
+          are honored — so redemptions can land slightly over the quota. Any
+          overage is shown below.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button
+            variant="accent"
+            onClick={createShared}
+            disabled={sharedCreating || !sharedCode.trim()}
+          >
+            <Plus size={15} /> {sharedCreating ? "Creating…" : "Create shared code"}
+          </Button>
+          {sharedResult && (
+            <span className="text-sm text-emerald-700">{sharedResult}</span>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-8 space-y-3">
+        <h2 className="subhead text-xl">Shared codes</h2>
+        {sharedCodes.length === 0 && (
+          <p className="text-sm text-brown">
+            No shared codes yet — create one above.
+          </p>
+        )}
+        {sharedCodes.map((s) => {
+          const pct = s.quota ? Math.round((s.redeemed / s.quota) * 100) : 0;
+          return (
+            <div
+              key={s.id}
+              className="rounded-2xl border border-warmgrey/60 bg-white/50 p-4"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="subhead inline-flex items-center gap-1.5 text-base font-mono">
+                    {s.code}
+                    <CopyButton value={s.code} label="code" iconOnly />
+                  </p>
+                  <p className="mt-0.5 text-xs text-brown">
+                    {s.label ? `${s.label} · ` : ""}
+                    {discountLabel(s.percentage, s.amountOffSen)} ·{" "}
+                    <span className="font-bold text-ink">{s.redeemed}</span>/
+                    {s.quota} redeemed ({pct}%)
+                    {s.over > 0 && (
+                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                        {s.over} over quota
+                      </span>
+                    )}
+                    {s.expiresAt ? ` · expires ${s.expiresAt.slice(0, 10)}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                    onClick={() => removeShared(s)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
             </div>
           );
         })}

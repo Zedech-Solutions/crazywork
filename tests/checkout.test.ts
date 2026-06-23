@@ -70,8 +70,14 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.order.deleteMany({ where: { customerEmail: { contains: RUN } } });
+  await prisma.discountRedemption.deleteMany({
+    where: { user: { email: { contains: RUN } } },
+  });
   await prisma.discountCode.deleteMany({
     where: { issuedEmail: { contains: RUN } },
+  });
+  await prisma.discountCode.deleteMany({
+    where: { batchLabel: { contains: RUN } },
   });
   await prisma.campaign.deleteMany({ where: { name: { contains: RUN } } });
   await prisma.product.deleteMany({ where: { id: productId } });
@@ -132,6 +138,160 @@ describe("priceCart (server-side pricing)", () => {
       email: EMAIL,
     });
     expect(result).toMatchObject({ ok: false, error: "out_of_stock" });
+  });
+});
+
+describe("priceCart — shared quota codes", () => {
+  const SHARED = `${RUN}-SHARED`.toUpperCase();
+  let userId: string;
+
+  beforeAll(async () => {
+    const user = await prisma.user.create({
+      data: { email: `${RUN}-shareduser@example.com` },
+    });
+    userId = user.id;
+    await prisma.discountCode.create({
+      data: {
+        code: SHARED,
+        issuedEmail: null,
+        percentage: 10,
+        source: "campaign",
+        batchLabel: `${RUN}-shared`,
+        maxRedemptions: 2,
+        redeemedCount: 0,
+      },
+    });
+  });
+
+  test("applies a shared code with quota remaining", async () => {
+    const result = await priceCart({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      email: EMAIL,
+      userId,
+      code: SHARED,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.pricing.discounts.some((d) => d.source === "code")).toBe(true);
+  });
+
+  test("rejects once the quota is fully redeemed", async () => {
+    await prisma.discountCode.update({
+      where: { code: SHARED },
+      data: { redeemedCount: 2 },
+    });
+    const result = await priceCart({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      email: EMAIL,
+      userId,
+      code: SHARED,
+    });
+    expect(result).toMatchObject({ ok: false, reason: "fully_redeemed" });
+    await prisma.discountCode.update({
+      where: { code: SHARED },
+      data: { redeemedCount: 0 },
+    });
+  });
+
+  test("rejects a customer who already redeemed it", async () => {
+    const dc = await prisma.discountCode.findUniqueOrThrow({
+      where: { code: SHARED },
+    });
+    await prisma.discountRedemption.create({
+      data: { discountCodeId: dc.id, userId },
+    });
+    const result = await priceCart({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      email: EMAIL,
+      userId,
+      code: SHARED,
+    });
+    expect(result).toMatchObject({ ok: false, reason: "already_used" });
+    await prisma.discountRedemption.deleteMany({ where: { userId } });
+  });
+});
+
+describe("markOrderPaid — shared quota concurrency", () => {
+  async function makeSharedCode(quota: number) {
+    const code = `${RUN}-Q${quota}`.toUpperCase();
+    const dc = await prisma.discountCode.create({
+      data: {
+        code,
+        issuedEmail: null,
+        percentage: 10,
+        source: "campaign",
+        batchLabel: `${RUN}-shared`,
+        maxRedemptions: quota,
+        redeemedCount: 0,
+      },
+    });
+    return { code, id: dc.id };
+  }
+
+  async function placeForUser(code: string, email: string) {
+    const user = await prisma.user.create({ data: { email } });
+    const placed = await placeOrder({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      customer: customer({ email }),
+      code,
+      userId: user.id,
+    });
+    if (!placed.ok) throw new Error("placement failed");
+    return { userId: user.id, orderNumber: placed.orderNumber };
+  }
+
+  test("cap holds: 5 distinct customers race a quota of 3 → exactly 3 counted, all honored", async () => {
+    const { code, id } = await makeSharedCode(3);
+    const placements = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        placeForUser(code, `${RUN}-race${i}@example.com`),
+      ),
+    );
+
+    const results = await Promise.all(
+      placements.map((p) => markOrderPaid(p.orderNumber)),
+    );
+    expect(results.every((r) => r.ok)).toBe(true);
+
+    const dc = await prisma.discountCode.findUniqueOrThrow({ where: { id } });
+    expect(dc.redeemedCount).toBe(3);
+
+    const rows = await prisma.discountRedemption.count({
+      where: { discountCodeId: id },
+    });
+    expect(rows).toBe(3);
+  });
+
+  test("once-per-customer: same user pays two orders with the code → counted once", async () => {
+    const { code, id } = await makeSharedCode(10);
+    const user = await prisma.user.create({
+      data: { email: `${RUN}-dupe@example.com` },
+    });
+    const place = async () => {
+      const placed = await placeOrder({
+        items: [{ variantId: inStockVariantId, quantity: 1 }],
+        shippingZone: "west",
+        customer: customer({ email: `${RUN}-dupe@example.com` }),
+        code,
+        userId: user.id,
+      });
+      if (!placed.ok) throw new Error("placement failed");
+      return placed.orderNumber;
+    };
+    const [a, b] = [await place(), await place()];
+
+    await Promise.all([markOrderPaid(a), markOrderPaid(b)]);
+
+    const dc = await prisma.discountCode.findUniqueOrThrow({ where: { id } });
+    expect(dc.redeemedCount).toBe(1);
+    const rows = await prisma.discountRedemption.count({
+      where: { discountCodeId: id, userId: user.id },
+    });
+    expect(rows).toBe(1);
   });
 });
 

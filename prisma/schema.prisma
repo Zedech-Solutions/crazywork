@@ -34,6 +34,7 @@ model User {
   sessions      Session[]
   orders        Order[]
   lockedCodes   DiscountCode[] // codes locked to this user
+  redemptions   DiscountRedemption[]
   wishlist      WishlistItem[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -262,17 +263,33 @@ model DiscountCode {
   issuedEmail  String? // null for campaign/bulk codes (open to anyone)
   percentage   Int            @default(0) // percentage discount (0 when fixed-amount)
   amountOffSen Int? // fixed discount in sen; when set, overrides percentage
-  used         Boolean        @default(false)
+  used           Boolean        @default(false) // legacy single-use only; ignored when maxRedemptions is set
+  maxRedemptions Int? // null = legacy single-use code; set = shared quota code
+  redeemedCount  Int            @default(0) // atomic counter for shared quota codes
   lockedUserId String? // set permanently on first authenticated redemption
   lockedUser   User?          @relation(fields: [lockedUserId], references: [id])
   source       DiscountSource
   batchLabel   String? // groups campaign/influencer codes into a batch
   expiresAt    DateTime?
   orders       Order[]
+  redemptions  DiscountRedemption[]
   createdAt    DateTime       @default(now())
 
   @@index([issuedEmail])
   @@index([batchLabel])
+}
+
+model DiscountRedemption {
+  id             String       @id @default(cuid())
+  discountCodeId String
+  discountCode   DiscountCode @relation(fields: [discountCodeId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  orderId        String?
+  createdAt      DateTime     @default(now())
+
+  @@unique([discountCodeId, userId])
+  @@index([discountCodeId])
 }
 
 enum CampaignType {
