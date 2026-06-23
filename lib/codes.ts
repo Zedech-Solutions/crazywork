@@ -85,7 +85,7 @@ export async function updateCampaignBatch(input: {
   if (input.amountOffSen !== undefined) data.amountOffSen = input.amountOffSen;
   if (input.expiresAt !== undefined) data.expiresAt = input.expiresAt;
   const res = await prisma.discountCode.updateMany({
-    where: { source: "campaign", batchLabel: input.label },
+    where: { source: "campaign", batchLabel: input.label, maxRedemptions: null },
     data,
   });
   return res.count;
@@ -95,7 +95,7 @@ export async function updateCampaignBatch(input: {
 // code keep their snapshot (the FK is set null), so order history survives.
 export async function deleteCampaignBatch(label: string): Promise<number> {
   const res = await prisma.discountCode.deleteMany({
-    where: { source: "campaign", batchLabel: label },
+    where: { source: "campaign", batchLabel: label, maxRedemptions: null },
   });
   return res.count;
 }

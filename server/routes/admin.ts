@@ -1242,7 +1242,13 @@ admin.post("/code-batches", async (c) => {
 });
 
 admin.get("/code-batches", async (c) => {
-  const where = { source: "campaign" as const, batchLabel: { not: null } };
+  // Shared quota codes are also source=campaign with a batchLabel; exclude them
+  // (maxRedemptions != null) so they don't appear as one-off "batches".
+  const where = {
+    source: "campaign" as const,
+    batchLabel: { not: null },
+    maxRedemptions: null,
+  };
   const [all, used] = await Promise.all([
     prisma.discountCode.groupBy({
       by: ["batchLabel"],
@@ -1275,7 +1281,7 @@ admin.get("/code-batches/:label", async (c) => {
   const label = c.req.param("label");
   const paid = new Set<string>(PAID_STATUSES);
   const codes = await prisma.discountCode.findMany({
-    where: { source: "campaign", batchLabel: label },
+    where: { source: "campaign", batchLabel: label, maxRedemptions: null },
     include: {
       orders: {
         select: {
@@ -1370,7 +1376,7 @@ admin.get("/code-batches/:label/export.csv", async (c) => {
   const label = c.req.param("label");
   const paid = new Set<string>(PAID_STATUSES);
   const codes = await prisma.discountCode.findMany({
-    where: { source: "campaign", batchLabel: label },
+    where: { source: "campaign", batchLabel: label, maxRedemptions: null },
     include: {
       orders: {
         select: { orderNumber: true, customerEmail: true, status: true },

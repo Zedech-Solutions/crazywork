@@ -102,6 +102,13 @@ describe("admin shared codes", () => {
       percentage: 15,
     });
 
+    // A shared code must NOT leak into the per-code batch listing.
+    const batches = await app.request("/api/admin/code-batches", { headers });
+    const batchBody = await batches.json();
+    expect(
+      batchBody.batches.some((b: { label: string }) => b.label === `${RUN}-share`),
+    ).toBe(false);
+
     const del = await app.request(`/api/admin/shared-codes/${created.id}`, {
       method: "DELETE",
       headers,
