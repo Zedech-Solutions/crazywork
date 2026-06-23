@@ -70,8 +70,14 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.order.deleteMany({ where: { customerEmail: { contains: RUN } } });
+  await prisma.discountRedemption.deleteMany({
+    where: { user: { email: { contains: RUN } } },
+  });
   await prisma.discountCode.deleteMany({
     where: { issuedEmail: { contains: RUN } },
+  });
+  await prisma.discountCode.deleteMany({
+    where: { batchLabel: { contains: RUN } },
   });
   await prisma.campaign.deleteMany({ where: { name: { contains: RUN } } });
   await prisma.product.deleteMany({ where: { id: productId } });
@@ -132,6 +138,79 @@ describe("priceCart (server-side pricing)", () => {
       email: EMAIL,
     });
     expect(result).toMatchObject({ ok: false, error: "out_of_stock" });
+  });
+});
+
+describe("priceCart — shared quota codes", () => {
+  const SHARED = `${RUN}-SHARED`.toUpperCase();
+  let userId: string;
+
+  beforeAll(async () => {
+    const user = await prisma.user.create({
+      data: { email: `${RUN}-shareduser@example.com` },
+    });
+    userId = user.id;
+    await prisma.discountCode.create({
+      data: {
+        code: SHARED,
+        issuedEmail: null,
+        percentage: 10,
+        source: "campaign",
+        batchLabel: `${RUN}-shared`,
+        maxRedemptions: 2,
+        redeemedCount: 0,
+      },
+    });
+  });
+
+  test("applies a shared code with quota remaining", async () => {
+    const result = await priceCart({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      email: EMAIL,
+      userId,
+      code: SHARED,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.pricing.discounts.some((d) => d.source === "code")).toBe(true);
+  });
+
+  test("rejects once the quota is fully redeemed", async () => {
+    await prisma.discountCode.update({
+      where: { code: SHARED },
+      data: { redeemedCount: 2 },
+    });
+    const result = await priceCart({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      email: EMAIL,
+      userId,
+      code: SHARED,
+    });
+    expect(result).toMatchObject({ ok: false, reason: "fully_redeemed" });
+    await prisma.discountCode.update({
+      where: { code: SHARED },
+      data: { redeemedCount: 0 },
+    });
+  });
+
+  test("rejects a customer who already redeemed it", async () => {
+    const dc = await prisma.discountCode.findUniqueOrThrow({
+      where: { code: SHARED },
+    });
+    await prisma.discountRedemption.create({
+      data: { discountCodeId: dc.id, userId },
+    });
+    const result = await priceCart({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      email: EMAIL,
+      userId,
+      code: SHARED,
+    });
+    expect(result).toMatchObject({ ok: false, reason: "already_used" });
+    await prisma.discountRedemption.deleteMany({ where: { userId } });
   });
 });
 

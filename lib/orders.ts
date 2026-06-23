@@ -157,10 +157,23 @@ export async function priceCart(input: {
     const record = await prisma.discountCode.findUnique({
       where: { code: input.code.trim().toUpperCase() },
     });
+    let alreadyRedeemedByUser = false;
+    if (record?.maxRedemptions != null && input.userId) {
+      const existing = await prisma.discountRedemption.findUnique({
+        where: {
+          discountCodeId_userId: {
+            discountCodeId: record.id,
+            userId: input.userId,
+          },
+        },
+      });
+      alreadyRedeemedByUser = existing != null;
+    }
     const validation = validatePromoCode({
       record,
       email: input.email,
       userId: input.userId,
+      alreadyRedeemedByUser,
       now: input.now,
     });
     if (!validation.ok) {
