@@ -1402,6 +1402,124 @@ admin.get("/code-batches/:label/export.csv", async (c) => {
   });
 });
 
+// ───────── shared quota codes (one code, many redemptions) ─────────
+
+admin.post("/shared-codes", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  // Stored exactly as a customer types it (uppercased) — the checkout lookup only
+  // uppercases, so the code must be plain alphanumeric with no spaces/symbols.
+  const code =
+    typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
+  const label = typeof body.label === "string" ? body.label.trim() : "";
+  const quota = Math.floor(Number(body.quota));
+  const discountType = body.discountType === "fixed" ? "fixed" : "percent";
+  const value = Number(body.value);
+  const expiresAt =
+    typeof body.expiresAt === "string" && body.expiresAt
+      ? new Date(body.expiresAt)
+      : null;
+
+  if (!/^[A-Z0-9]+$/.test(code)) {
+    return c.json(
+      { ok: false, message: "Code must be letters and numbers only (no spaces or symbols)." },
+      400,
+    );
+  }
+  if (!Number.isFinite(quota) || quota < 1) {
+    return c.json({ ok: false, message: "Quota must be at least 1." }, 400);
+  }
+  if (!Number.isFinite(value) || value <= 0) {
+    return c.json({ ok: false, message: "Enter a discount value." }, 400);
+  }
+  if (discountType === "percent" && value > 100) {
+    return c.json({ ok: false, message: "Percentage can't exceed 100." }, 400);
+  }
+
+  const existing = await prisma.discountCode.findUnique({ where: { code } });
+  if (existing) return c.json({ ok: false, message: "That code already exists." }, 409);
+
+  const created = await prisma.discountCode.create({
+    data: {
+      code,
+      issuedEmail: null,
+      percentage: discountType === "percent" ? Math.round(value) : 0,
+      amountOffSen: discountType === "fixed" ? Math.round(value * 100) : null,
+      source: "campaign",
+      batchLabel: label || code,
+      maxRedemptions: quota,
+      expiresAt,
+    },
+  });
+  return c.json({ ok: true, id: created.id });
+});
+
+admin.get("/shared-codes", async (c) => {
+  const rows = await prisma.discountCode.findMany({
+    where: { maxRedemptions: { not: null } },
+    orderBy: { createdAt: "desc" },
+  });
+  return c.json({
+    codes: rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      label: r.batchLabel,
+      quota: r.maxRedemptions ?? 0,
+      redeemed: r.redeemedCount,
+      over: Math.max(0, r.redeemedCount - (r.maxRedemptions ?? 0)),
+      percentage: r.percentage,
+      amountOffSen: r.amountOffSen,
+      expiresAt: r.expiresAt,
+      createdAt: r.createdAt,
+    })),
+  });
+});
+
+admin.patch("/shared-codes/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const data: Record<string, unknown> = {};
+
+  if (typeof body.label === "string") data.batchLabel = body.label.trim() || null;
+  if (body.quota !== undefined) {
+    const quota = Math.floor(Number(body.quota));
+    if (!Number.isFinite(quota) || quota < 1) {
+      return c.json({ ok: false, message: "Quota must be at least 1." }, 400);
+    }
+    data.maxRedemptions = quota;
+  }
+  if (body.discountType === "percent" && body.value !== undefined) {
+    const value = Number(body.value);
+    if (!Number.isFinite(value) || value <= 0 || value > 100) {
+      return c.json({ ok: false, message: "Enter a percentage 1–100." }, 400);
+    }
+    data.percentage = Math.round(value);
+    data.amountOffSen = null;
+  }
+  if (body.discountType === "fixed" && body.value !== undefined) {
+    const value = Number(body.value);
+    if (!Number.isFinite(value) || value <= 0) {
+      return c.json({ ok: false, message: "Enter a discount value." }, 400);
+    }
+    data.amountOffSen = Math.round(value * 100);
+    data.percentage = 0;
+  }
+  if ("expiresAt" in body) {
+    data.expiresAt =
+      typeof body.expiresAt === "string" && body.expiresAt
+        ? new Date(body.expiresAt)
+        : null;
+  }
+
+  await prisma.discountCode.update({ where: { id }, data });
+  return c.json({ ok: true });
+});
+
+admin.delete("/shared-codes/:id", async (c) => {
+  const id = c.req.param("id");
+  await prisma.discountCode.delete({ where: { id } });
+  return c.json({ ok: true });
+});
+
 // ───────── settings ─────────
 admin.get("/settings", async (c) => {
   return c.json({ settings: await getSettings() });
