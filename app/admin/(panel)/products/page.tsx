@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { GripVertical, Plus, Trash2, X } from "lucide-react";
-import { adminFetch, uploadFile } from "@/components/admin/api";
+import { GripVertical, Play, Plus, Trash2, X } from "lucide-react";
+import { adminFetch, uploadMedia } from "@/components/admin/api";
 import { useConfirm } from "@/components/admin/confirm";
 import { SizeGuideEditor } from "@/components/admin/size-guide-editor";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ interface VariantForm {
 interface ImageForm {
   imageUrl: string;
   alt: string;
+  mediaType: "image" | "video";
 }
 
 interface ProductForm {
@@ -70,7 +71,7 @@ interface ApiProduct {
     sku: string | null;
     costPrice: string | null;
   }[];
-  images: { imageUrl: string; alt: string | null }[];
+  images: { imageUrl: string; alt: string | null; mediaType: "image" | "video" }[];
   drop: { name: string } | null;
   sizeGuide: SizeGuideTable | null;
 }
@@ -158,6 +159,7 @@ export default function AdminProductsPage() {
       images: p.images.map((img) => ({
         imageUrl: img.imageUrl,
         alt: img.alt ?? "",
+        mediaType: img.mediaType,
       })),
       customSizeGuide: p.sizeGuide != null,
       sizeGuide: p.sizeGuide ?? DEFAULT_SIZE_GUIDE,
@@ -218,12 +220,16 @@ export default function AdminProductsPage() {
     if (!files || !editing) return;
     setBusy(true);
     try {
-      const urls = await Promise.all([...files].map(uploadFile));
+      const uploaded = await Promise.all([...files].map(uploadMedia));
       setEditing({
         ...editing,
         images: [
           ...editing.images,
-          ...urls.map((url) => ({ imageUrl: url, alt: editing.name })),
+          ...uploaded.map(({ url, mediaType }) => ({
+            imageUrl: url,
+            alt: editing.name,
+            mediaType,
+          })),
         ],
       });
     } catch (e) {
@@ -505,9 +511,9 @@ export default function AdminProductsPage() {
             </div>
           </section>
 
-          {/* IMAGES */}
+          {/* MEDIA */}
           <section className="border-t border-warmgrey pt-5">
-            <h2 className="subhead text-xl">Images</h2>
+            <h2 className="subhead text-xl">Media</h2>
             <div className="mt-3 flex flex-wrap gap-3">
               {editing.images.map((img, i) => (
                 <div
@@ -525,13 +531,28 @@ export default function AdminProductsPage() {
                     imageDragIndex === i ? "opacity-50" : ""
                   }`}
                 >
-                  <Image
-                    src={img.imageUrl}
-                    alt={img.alt}
-                    fill
-                    sizes="88px"
-                    className="pointer-events-none object-cover"
-                  />
+                  {img.mediaType === "video" ? (
+                    <>
+                      <video
+                        src={img.imageUrl}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="pointer-events-none h-full w-full object-cover"
+                      />
+                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <Play size={18} className="text-peach drop-shadow" fill="currentColor" />
+                      </span>
+                    </>
+                  ) : (
+                    <Image
+                      src={img.imageUrl}
+                      alt={img.alt}
+                      fill
+                      sizes="88px"
+                      className="pointer-events-none object-cover"
+                    />
+                  )}
                   <span className="absolute left-1 top-1 bg-ink/70 p-0.5 text-peach">
                     <GripVertical size={12} />
                   </span>
@@ -563,7 +584,7 @@ export default function AdminProductsPage() {
                 <Plus size={18} />
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,video/*"
                   multiple
                   className="hidden"
                   onChange={(e) => addImages(e.target.files)}
@@ -571,8 +592,9 @@ export default function AdminProductsPage() {
               </label>
             </div>
             <p className="mt-2 text-xs text-warmgrey">
-              Drag to reorder — the first image is the cover, the second shows on
-              hover. Uploads are stored on Cloudflare R2.
+              Drag to reorder — the first item is the cover, the second shows on
+              hover. Images and videos (mp4/webm, ≤50&nbsp;MB) are stored on
+              Cloudflare R2.
             </p>
           </section>
 
@@ -674,13 +696,23 @@ export default function AdminProductsPage() {
                   <span className="flex items-center gap-3 subhead text-base group-hover:text-ember">
                     {p.images[0] && (
                       <span className="relative inline-block h-12 w-10 shrink-0 overflow-hidden bg-ink">
-                        <Image
-                          src={p.images[0].imageUrl}
-                          alt=""
-                          fill
-                          sizes="40px"
-                          className="object-cover"
-                        />
+                        {p.images[0].mediaType === "video" ? (
+                          <video
+                            src={p.images[0].imageUrl}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <Image
+                            src={p.images[0].imageUrl}
+                            alt=""
+                            fill
+                            sizes="40px"
+                            className="object-cover"
+                          />
+                        )}
                       </span>
                     )}
                     {p.name}

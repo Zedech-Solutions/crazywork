@@ -36,7 +36,10 @@ export async function generateMetadata({
       product.description?.slice(0, 155) ??
       `${product.name} — CRAZYWORK gym & lifestyle apparel.`,
     openGraph: {
-      images: product.images[0] ? [{ url: product.images[0].imageUrl }] : [],
+      images: (() => {
+        const cover = product.images.find((img) => img.mediaType === "image");
+        return cover ? [{ url: cover.imageUrl }] : [];
+      })(),
     },
   };
 }
@@ -88,6 +91,7 @@ export default async function ProductPage({
           images: product.images.map((img) => ({
             url: img.imageUrl,
             alt: img.alt ?? product.name,
+            type: img.mediaType,
           })),
           variants: product.variants.map((v) => ({
             id: v.id,
