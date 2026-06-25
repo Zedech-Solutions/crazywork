@@ -394,23 +394,24 @@ admin.get("/wishlist", async (c) => {
   });
 });
 
-// ───────── uploads (Storage stub → /public/uploads) ─────────
-admin.post("/upload", async (c) => {
-  const form = await c.req.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) {
-    return c.json({ ok: false, message: "No file" }, 400);
+// ───────── uploads (presigned direct-to-R2) ─────────
+// The browser asks for a signed PUT URL, then uploads the file straight to R2.
+// This keeps large files (videos) off the serverless function, which caps
+// request bodies at ~4.5 MB.
+admin.post("/upload-url", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const name = typeof body?.name === "string" ? body.name : "";
+  const contentType = typeof body?.contentType === "string" ? body.contentType : "";
+  const size = typeof body?.size === "number" ? body.size : NaN;
+  if (!name || !contentType || Number.isNaN(size)) {
+    return c.json({ ok: false, message: "name, contentType and size are required" }, 400);
   }
-  const check = validateUpload({ contentType: file.type, size: file.size });
+  const check = validateUpload({ contentType, size });
   if (!check.ok) {
     return c.json({ ok: false, message: check.error }, 400);
   }
-  const uploaded = await storage.upload({
-    name: file.name,
-    contentType: file.type,
-    bytes: Buffer.from(await file.arrayBuffer()),
-  });
-  return c.json({ ok: true, url: uploaded.url, mediaType: check.mediaType });
+  const { uploadUrl, publicUrl } = await storage.presignUpload({ name, contentType });
+  return c.json({ ok: true, uploadUrl, publicUrl, mediaType: check.mediaType });
 });
 
 // ───────── products ─────────

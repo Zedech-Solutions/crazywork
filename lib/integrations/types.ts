@@ -12,6 +12,13 @@ export interface UploadedFile {
 export interface Storage {
   upload(file: UploadedFile): Promise<{ url: string }>;
   delete(url: string): Promise<void>;
+  // Mints a short-lived URL the browser can PUT a file to directly, plus the
+  // public URL that file will be served from once uploaded. Lets large files
+  // (e.g. videos) bypass the serverless request-body size limit.
+  presignUpload(file: {
+    name: string;
+    contentType: string;
+  }): Promise<{ uploadUrl: string; publicUrl: string }>;
 }
 
 export type MailTemplate =

@@ -5,6 +5,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Storage, UploadedFile } from "./types";
 
 function randomKey(name: string): string {
@@ -55,6 +56,23 @@ export class R2Storage implements Storage {
       }),
     );
     return { url: `${this.publicBase}/${key}` };
+  }
+
+  async presignUpload(file: {
+    name: string;
+    contentType: string;
+  }): Promise<{ uploadUrl: string; publicUrl: string }> {
+    const key = this.prefix + randomKey(file.name);
+    const uploadUrl = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ContentType: file.contentType,
+      }),
+      { expiresIn: 300 },
+    );
+    return { uploadUrl, publicUrl: `${this.publicBase}/${key}` };
   }
 
   async delete(url: string): Promise<void> {
