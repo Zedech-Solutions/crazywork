@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/field";
 import { useCart } from "@/components/cart/cart-context";
@@ -16,8 +17,10 @@ export interface CardProduct {
   category: string | null;
   basePriceSen: number;
   image: string | null;
+  imageType: "image" | "video";
   /** second product image (e.g. backside) revealed on hover */
   hoverImage: string | null;
+  hoverImageType: "image" | "video";
   isNew: boolean;
   isLimited: boolean;
   soldOut: boolean;
@@ -42,6 +45,26 @@ export function ProductCard({
   const cart = useCart();
   const router = useRouter();
   const large = size === "large";
+  const mediaRef = useRef<HTMLDivElement>(null);
+
+  // Videos play (muted) while the card is hovered, then reset when the pointer
+  // leaves — a silent preview that mirrors the photo hover-reveal.
+  function playVideos() {
+    mediaRef.current?.querySelectorAll("video").forEach((v) => {
+      void v.play().catch(() => {});
+    });
+  }
+  function resetVideos() {
+    mediaRef.current?.querySelectorAll("video").forEach((v) => {
+      v.pause();
+      v.currentTime = 0;
+    });
+  }
+
+  const sizesAttr = large
+    ? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+    : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw";
+  const showHover = Boolean(product.hoverImage) && product.imageType !== "video";
 
   function addToCart(e: React.MouseEvent) {
     e.preventDefault();
@@ -71,41 +94,55 @@ export function ProductCard({
       aria-label={product.name}
     >
       <div
+        ref={mediaRef}
+        onMouseEnter={playVideos}
+        onMouseLeave={resetVideos}
         className={cn(
           "relative overflow-hidden bg-ink",
           large ? "aspect-[3/4]" : "aspect-[4/5]",
         )}
       >
-        {product.image && (
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            sizes={
-              large
-                ? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            }
-            className={cn(
-              "object-cover transition-transform duration-500 group-hover:scale-[1.04]",
-              product.hoverImage &&
-                "transition-opacity group-hover:opacity-0",
-            )}
-          />
-        )}
-        {product.hoverImage && (
-          <Image
-            src={product.hoverImage}
-            alt={`${product.name} — alternate view`}
-            fill
-            sizes={
-              large
-                ? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            }
-            className="object-cover opacity-0 transition-all duration-500 group-hover:scale-[1.04] group-hover:opacity-100"
-          />
-        )}
+        {product.image &&
+          (product.imageType === "video" ? (
+            <video
+              src={product.image}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            />
+          ) : (
+            <Image
+              src={product.image}
+              alt={product.name}
+              fill
+              sizes={sizesAttr}
+              className={cn(
+                "object-cover transition-transform duration-500 group-hover:scale-[1.04]",
+                showHover && "transition-opacity group-hover:opacity-0",
+              )}
+            />
+          ))}
+        {showHover &&
+          (product.hoverImageType === "video" ? (
+            <video
+              src={product.hoverImage!}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-all duration-500 group-hover:scale-[1.04] group-hover:opacity-100"
+            />
+          ) : (
+            <Image
+              src={product.hoverImage!}
+              alt={`${product.name} — alternate view`}
+              fill
+              sizes={sizesAttr}
+              className="object-cover opacity-0 transition-all duration-500 group-hover:scale-[1.04] group-hover:opacity-100"
+            />
+          ))}
         <div className="absolute left-2 top-2 flex flex-col gap-1.5">
           {product.upcoming && <Badge tone="ember">Upcoming</Badge>}
           {product.isNew && !product.upcoming && <Badge tone="ember">New</Badge>}

@@ -226,7 +226,7 @@ async function orderEmailItems(
   return Promise.all(
     items.map(async (i) => {
       const img = await prisma.productImage.findFirst({
-        where: { productId: i.productId },
+        where: { productId: i.productId, mediaType: "image" },
         orderBy: { sortOrder: "asc" },
         select: { imageUrl: true },
       });

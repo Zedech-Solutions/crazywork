@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { Badge } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { ColourDropdown } from "@/components/product/colour-dropdown";
@@ -35,7 +35,7 @@ export interface PdpProduct {
   upcoming: boolean; // belongs to a drop that hasn't launched — not purchasable
   countdownUntil: string | null; // the drop's launch countdown, when set
   dropId: string | null; // its drop, for "notify me" signups when upcoming
-  images: { url: string; alt: string }[];
+  images: { url: string; alt: string; type: "image" | "video" }[];
   variants: PdpVariant[];
 }
 
@@ -98,7 +98,10 @@ export function PdpClient({
       size: selected.size,
       colour: selected.colour,
       unitPriceSen: product.basePriceSen,
-      image: product.images[0]?.url ?? null,
+      image:
+        product.images.find((m) => m.type === "image")?.url ??
+        product.images[0]?.url ??
+        null,
       maxStock: selected.stock,
     });
   }
@@ -111,16 +114,26 @@ export function PdpClient({
         {/* GALLERY */}
         <div>
           <div className="group relative aspect-[4/5] overflow-hidden bg-ink">
-            {image && (
-              <Image
-                src={image.url}
-                alt={image.alt}
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 58vw"
-                className="object-cover"
-              />
-            )}
+            {image &&
+              (image.type === "video" ? (
+                <video
+                  key={image.url}
+                  src={image.url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <Image
+                  src={image.url}
+                  alt={image.alt}
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 58vw"
+                  className="object-cover"
+                />
+              ))}
             <div className="absolute left-3 top-3 flex gap-2">
               {product.upcoming && <Badge tone="ember">Upcoming</Badge>}
               {product.isNew && !product.upcoming && <Badge tone="ember">New</Badge>}
@@ -164,9 +177,24 @@ export function PdpClient({
                     "relative h-20 w-16 overflow-hidden bg-ink cursor-pointer border",
                     i === imageIndex ? "border-ember" : "border-transparent",
                   )}
-                  aria-label={`Image ${i + 1}`}
+                  aria-label={`${img.type === "video" ? "Video" : "Image"} ${i + 1}`}
                 >
-                  <Image src={img.url} alt={img.alt} fill sizes="64px" className="object-cover" />
+                  {img.type === "video" ? (
+                    <>
+                      <video
+                        src={img.url}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="h-full w-full object-cover"
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <Play size={16} className="text-peach drop-shadow" fill="currentColor" />
+                      </span>
+                    </>
+                  ) : (
+                    <Image src={img.url} alt={img.alt} fill sizes="64px" className="object-cover" />
+                  )}
                 </button>
               ))}
             </div>

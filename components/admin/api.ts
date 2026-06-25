@@ -16,11 +16,17 @@ export async function adminFetch<T = unknown>(
   return body as T;
 }
 
-export async function uploadFile(file: File): Promise<string> {
+export async function uploadMedia(
+  file: File,
+): Promise<{ url: string; mediaType: "image" | "video" }> {
   const form = new FormData();
   form.append("file", file);
   const res = await fetch("/api/admin/upload", { method: "POST", body: form });
   const body = await res.json();
   if (!res.ok || !body.ok) throw new Error(body.message ?? "Upload failed");
-  return body.url as string;
+  return { url: body.url as string, mediaType: body.mediaType ?? "image" };
+}
+
+export async function uploadFile(file: File): Promise<string> {
+  return (await uploadMedia(file)).url;
 }

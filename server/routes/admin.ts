@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { getSuperadminSession } from "@/lib/admin-guard";
 import { prisma, TX_OPTS } from "@/lib/db";
 import { storage, deleteObjects } from "@/lib/integrations/storage";
+import { validateUpload } from "@/lib/integrations/media";
 import { mailer } from "@/lib/integrations/mailer";
 import { payment } from "@/lib/integrations/payment";
 import { verifyDiscord } from "@/lib/integrations/notifier";
@@ -400,12 +401,16 @@ admin.post("/upload", async (c) => {
   if (!(file instanceof File)) {
     return c.json({ ok: false, message: "No file" }, 400);
   }
+  const check = validateUpload({ contentType: file.type, size: file.size });
+  if (!check.ok) {
+    return c.json({ ok: false, message: check.error }, 400);
+  }
   const uploaded = await storage.upload({
     name: file.name,
     contentType: file.type,
     bytes: Buffer.from(await file.arrayBuffer()),
   });
-  return c.json({ ok: true, url: uploaded.url });
+  return c.json({ ok: true, url: uploaded.url, mediaType: check.mediaType });
 });
 
 // ───────── products ─────────
@@ -455,6 +460,12 @@ type VariantBody = {
   costPrice?: unknown;
 };
 
+type ImageBody = {
+  imageUrl: string;
+  alt?: string;
+  mediaType?: "image" | "video";
+};
+
 function variantData(v: VariantBody, sortOrder: number) {
   return {
     size: String(v.size ?? "").trim(),
@@ -484,9 +495,12 @@ admin.post("/products", async (c) => {
         ),
       },
       images: {
-        create: ((body.images as { imageUrl: string; alt?: string }[]) ?? []).map(
-          (img, i) => ({ imageUrl: img.imageUrl, alt: img.alt ?? null, sortOrder: i }),
-        ),
+        create: ((body.images as ImageBody[]) ?? []).map((img, i) => ({
+          imageUrl: img.imageUrl,
+          alt: img.alt ?? null,
+          sortOrder: i,
+          mediaType: img.mediaType ?? "image",
+        })),
       },
     },
   });
@@ -518,7 +532,7 @@ admin.patch("/products/:id", async (c) => {
       }
     }
     if (Array.isArray(body.images)) {
-      const newImages = body.images as { imageUrl: string; alt?: string }[];
+      const newImages = body.images as ImageBody[];
       const existing = await tx.productImage.findMany({
         where: { productId: id },
         select: { imageUrl: true },
@@ -534,6 +548,7 @@ admin.patch("/products/:id", async (c) => {
           imageUrl: img.imageUrl,
           alt: img.alt ?? null,
           sortOrder: i,
+          mediaType: img.mediaType ?? "image",
         })),
       });
     }
