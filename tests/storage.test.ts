@@ -63,6 +63,22 @@ describe("R2Storage", () => {
     await s.delete("https://cdn.example.com"); // base only, no key
     expect(client.calls).toHaveLength(0);
   });
+
+  test("presignUpload returns a signed PUT URL plus the eventual public URL", async () => {
+    const s = new R2Storage(R2ENV);
+    const { uploadUrl, publicUrl } = await s.presignUpload({
+      name: "promo.mp4",
+      contentType: "video/mp4",
+    });
+    // The public URL is the CDN base + the uploads/ key the client will read back.
+    expect(publicUrl).toMatch(/^https:\/\/cdn\.example\.com\/uploads\/.*\.mp4$/);
+    // The signed URL targets the R2 S3 endpoint and carries SigV4 query params.
+    expect(uploadUrl).toContain(".r2.cloudflarestorage.com");
+    expect(uploadUrl).toContain("X-Amz-Signature=");
+    // Same object key in both URLs.
+    const key = publicUrl.split("/uploads/")[1];
+    expect(uploadUrl).toContain(`uploads/${key}`);
+  });
 });
 
 describe("storageFromEnv", () => {
