@@ -19,12 +19,30 @@ export async function adminFetch<T = unknown>(
 export async function uploadMedia(
   file: File,
 ): Promise<{ url: string; mediaType: "image" | "video" }> {
-  const form = new FormData();
-  form.append("file", file);
-  const res = await fetch("/api/admin/upload", { method: "POST", body: form });
-  const body = await res.json();
-  if (!res.ok || !body.ok) throw new Error(body.message ?? "Upload failed");
-  return { url: body.url as string, mediaType: body.mediaType ?? "image" };
+  // 1) Ask our API for a short-lived signed URL (validates type + size).
+  const res = await fetch("/api/admin/upload-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: file.name,
+      contentType: file.type,
+      size: file.size,
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.ok) {
+    throw new Error(body.message ?? `Upload failed (${res.status})`);
+  }
+  // 2) Upload the file straight to R2 — bypasses the function body-size limit.
+  const put = await fetch(body.uploadUrl as string, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!put.ok) {
+    throw new Error(`Upload to storage failed (${put.status})`);
+  }
+  return { url: body.publicUrl as string, mediaType: body.mediaType ?? "image" };
 }
 
 export async function uploadFile(file: File): Promise<string> {
