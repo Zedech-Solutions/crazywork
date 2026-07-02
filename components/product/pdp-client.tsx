@@ -112,7 +112,7 @@ export function PdpClient({
     <>
       <div className="grid gap-10 lg:grid-cols-[7fr_5fr]">
         {/* GALLERY */}
-        <div>
+        <div className="min-w-0">
           <div className="group relative aspect-[4/5] overflow-hidden bg-ink">
             {image &&
               (image.type === "video" ? (
@@ -168,13 +168,13 @@ export function PdpClient({
             )}
           </div>
           {product.images.length > 1 && (
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {product.images.map((img, i) => (
                 <button
                   key={img.url}
                   onClick={() => setImageIndex(i)}
                   className={cn(
-                    "relative h-20 w-16 overflow-hidden bg-ink cursor-pointer border",
+                    "relative h-20 w-16 shrink-0 overflow-hidden bg-ink cursor-pointer border",
                     i === imageIndex ? "border-ember" : "border-transparent",
                   )}
                   aria-label={`${img.type === "video" ? "Video" : "Image"} ${i + 1}`}
