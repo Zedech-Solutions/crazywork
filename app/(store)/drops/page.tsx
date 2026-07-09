@@ -10,7 +10,7 @@ import { getDropsContent } from "@/lib/content";
 import { prisma } from "@/lib/db";
 import { getSetting } from "@/lib/settings";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Drops",

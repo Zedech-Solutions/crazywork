@@ -1,5 +1,10 @@
 export type MediaType = "image" | "video";
 
+// Upload keys are content-unique (timestamp + random), so aggressive immutable
+// caching is safe. Presigned PUTs sign this header — the browser upload must
+// send the identical value (see components/admin/api.ts).
+export const UPLOAD_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
 export type ValidateUploadResult =
   | { ok: true; mediaType: MediaType }
   | { ok: false; error: string };

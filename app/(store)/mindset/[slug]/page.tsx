@@ -4,7 +4,14 @@ import { Clock } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getMindsetArticle, type MindsetBg } from "@/lib/content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
+
+// Registers this dynamic segment for ISR: params render on demand, then cache
+// for the revalidate window. Without this export Next treats the page as
+// fully dynamic and revalidate is ignored.
+export function generateStaticParams() {
+  return [];
+}
 
 // Per-background text treatment. Classes are written out in full (no string
 // interpolation) so Tailwind keeps them in the build.

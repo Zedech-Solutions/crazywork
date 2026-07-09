@@ -5,7 +5,14 @@ import { notFound } from "next/navigation";
 import { BlockRenderer } from "@/components/blocks/block-renderer";
 import { prisma } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
+
+// Registers this dynamic segment for ISR: params render on demand, then cache
+// for the revalidate window. Without this export Next treats the page as
+// fully dynamic and revalidate is ignored.
+export function generateStaticParams() {
+  return [];
+}
 
 async function getCollab(slug: string) {
   return prisma.contentPost.findFirst({

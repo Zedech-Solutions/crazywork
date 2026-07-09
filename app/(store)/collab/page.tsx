@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/field";
 import { Reveal } from "@/components/site/reveal";
 import { prisma } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Collabs",

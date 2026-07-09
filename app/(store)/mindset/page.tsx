@@ -8,7 +8,7 @@ import { Reveal } from "@/components/site/reveal";
 import { RichText } from "@/components/site/rich-text";
 import { getMindsetContent, mindsetArticleSlug } from "@/lib/content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Mindset",
