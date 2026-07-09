@@ -4,6 +4,14 @@ import { prisma } from "@/lib/db";
 // FRESH-LAUNCH reset — wipes all store/customer/content data so you can build
 // real products from scratch. KEEPS: superadmin login, site settings, and the
 // encrypted integration keys (Resend / Stripe / Discord). Irreversible.
+const dbUrl = process.env.DATABASE_URL ?? "";
+if (!/localhost|127\.0\.0\.1/.test(dbUrl) && process.env.ALLOW_REMOTE_RESET !== "yes") {
+  console.error(
+    "Refusing to run against a remote database. Set ALLOW_REMOTE_RESET=yes to override.",
+  );
+  process.exit(1);
+}
+
 async function main() {
   const host = (process.env.DATABASE_URL ?? "").split("@")[1]?.split(".")[0];
   console.log(`Target DB: ${host}\n`);

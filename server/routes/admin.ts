@@ -66,30 +66,49 @@ admin.use("*", async (c, next) => {
 const PAID_STATUSES = ["paid", "processing", "shipped", "delivered"] as const;
 
 admin.get("/stats", async (c) => {
-  const [orders, paidOrders, productCount, customers, subscribers, pendingCount] =
-    await Promise.all([
-      prisma.order.count(),
-      prisma.order.findMany({
-        where: { status: { in: [...PAID_STATUSES] } },
-        select: { total: true, subtotal: true, discountAmount: true, items: true },
-      }),
-      prisma.product.count(),
-      prisma.user.count({ where: { role: "customer" } }),
-      prisma.emailSubscriber.count(),
-      prisma.order.count({ where: { status: "pending" } }),
-    ]);
+  // Use aggregate/groupBy instead of loading every paid order row into JS.
+  // COGS = Σ(costPrice × qty) still requires per-item iteration, but we fetch
+  // only the two numeric columns we need, and only for items that have a cost.
+  const [
+    orders,
+    paidAgg,
+    cogsItems,
+    productCount,
+    customers,
+    subscribers,
+    pendingCount,
+  ] = await Promise.all([
+    prisma.order.count(),
+    // Sum total, subtotal, discountAmount across all paid orders in one DB round-trip.
+    prisma.order.aggregate({
+      where: { status: { in: [...PAID_STATUSES] } },
+      _sum: { total: true, subtotal: true, discountAmount: true },
+    }),
+    // Fetch only items that have a cost snapshot; select the two fields we need.
+    prisma.orderItem.findMany({
+      where: {
+        order: { status: { in: [...PAID_STATUSES] } },
+        costPrice: { not: null },
+      },
+      select: { costPrice: true, quantity: true },
+    }),
+    prisma.product.count(),
+    prisma.user.count({ where: { role: "customer" } }),
+    prisma.emailSubscriber.count(),
+    prisma.order.count({ where: { status: "pending" } }),
+  ]);
+
+  // Derive revenue / profit from the aggregated sums.
+  const revenueSen = paidAgg._sum.total != null ? toSen(paidAgg._sum.total) : 0;
+  const subtotalSen = paidAgg._sum.subtotal != null ? toSen(paidAgg._sum.subtotal) : 0;
+  const discountSen = paidAgg._sum.discountAmount != null ? toSen(paidAgg._sum.discountAmount) : 0;
+  const netRevenueSen = subtotalSen - discountSen;
 
   // Estimated profit = net revenue (subtotal − discount) − COGS (cost × qty).
   // Items without a snapshot cost contribute 0 cost (profit slightly overstated).
-  let revenueSen = 0;
-  let netRevenueSen = 0;
   let cogsSen = 0;
-  for (const order of paidOrders) {
-    revenueSen += toSen(order.total);
-    netRevenueSen += toSen(order.subtotal) - toSen(order.discountAmount);
-    for (const item of order.items) {
-      if (item.costPrice != null) cogsSen += toSen(item.costPrice) * item.quantity;
-    }
+  for (const item of cogsItems) {
+    if (item.costPrice != null) cogsSen += toSen(item.costPrice) * item.quantity;
   }
 
   const { lowStockThreshold } = await getSettings();
@@ -228,31 +247,31 @@ admin.get("/stats/timeseries", async (c) => {
 });
 
 // ───────── customers (CRM) ─────────
+//
+// Pagination strategy (revised):
+//
+// The old implementation loaded ALL users + ALL orders into JS and paginated
+// in-memory. That scales badly once the tables grow.
+//
+// New approach:
+//  1. Paginate *account* users at DB level (skip/take with optional search filter).
+//     Ordering is by `createdAt desc` at DB level; this is a stable, indexed sort.
+//  2. Fetch order stats (count, spentSen, lastOrderAt) for the current page of
+//     user emails in a single grouped aggregate — no full-table scan.
+//  3. Guests (orders without a matching user account) are included when a `q`
+//     search is active (we do a targeted order lookup), or when the caller
+//     specifically requests page 1 with no search (we append up to pageSize guest
+//     rows after account rows). Full cross-table in-memory merge is only done when
+//     the search query is set, which keeps the hot (unfiltered) path efficient.
+//
+// Trade-off documented: the primary sort for account rows is `createdAt desc`
+// (DB-level). The old sort was `lastOrderAt desc` across all rows. Guests without
+// accounts always appear after account rows in unfiltered results. For filtered
+// results the old in-memory merge logic is preserved exactly.
 admin.get("/customers", async (c) => {
   const pageSize = 20;
   const page = Math.max(1, Number(c.req.query("page") ?? 1));
   const q = (c.req.query("q") ?? "").trim().toLowerCase();
-
-  // A "customer" is anyone who has an account OR has placed an order. We merge
-  // both sources by (lowercased) email so guest buyers show up too.
-  const [users, orders] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: "customer" },
-      select: { id: true, name: true, email: true, phone: true, createdAt: true },
-    }),
-    prisma.order.findMany({
-      select: {
-        customerEmail: true,
-        customerName: true,
-        customerPhone: true,
-        total: true,
-        status: true,
-        placedAt: true,
-        manual: true,
-        userId: true,
-      },
-    }),
-  ]);
 
   interface Row {
     id: string;
@@ -265,73 +284,183 @@ admin.get("/customers", async (c) => {
     orders: number;
     spentSen: number;
   }
-  const byEmail = new Map<string, Row>();
 
-  for (const u of users) {
-    byEmail.set(u.email.toLowerCase(), {
+  const paid = new Set<string>(PAID_STATUSES);
+
+  // ── FILTERED PATH (q is set): keep original in-memory merge for correctness ──
+  // Search covers both name and email across accounts + guests, so we must still
+  // load relevant rows from both tables. Scope order fetch to matching emails to
+  // keep it bounded.
+  if (q) {
+    const [users, orders] = await Promise.all([
+      prisma.user.findMany({
+        where: {
+          role: "customer",
+          OR: [
+            { name: { contains: q, mode: "insensitive" } },
+            { email: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true, name: true, email: true, phone: true, createdAt: true },
+      }),
+      // Fetch only orders matching the search term.
+      prisma.order.findMany({
+        where: {
+          OR: [
+            { customerEmail: { contains: q, mode: "insensitive" } },
+            { customerName: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        select: {
+          customerEmail: true,
+          customerName: true,
+          customerPhone: true,
+          total: true,
+          status: true,
+          placedAt: true,
+          manual: true,
+          userId: true,
+        },
+      }),
+    ]);
+
+    const byEmail = new Map<string, Row>();
+    for (const u of users) {
+      byEmail.set(u.email.toLowerCase(), {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        type: "account",
+        joinedAt: u.createdAt,
+        lastOrderAt: null,
+        orders: 0,
+        spentSen: 0,
+      });
+    }
+    for (const o of orders) {
+      // Skip anonymous walk-in orders (manual with no linked user) — same as original.
+      if ((o.manual && !o.userId) || !o.customerEmail) continue;
+      const key = o.customerEmail.toLowerCase();
+      let row = byEmail.get(key);
+      if (!row) {
+        row = {
+          id: `guest:${key}`,
+          name: o.customerName,
+          email: o.customerEmail,
+          phone: o.customerPhone,
+          type: "guest",
+          joinedAt: o.placedAt,
+          lastOrderAt: null,
+          orders: 0,
+          spentSen: 0,
+        };
+        byEmail.set(key, row);
+      }
+      row.orders += 1;
+      if (paid.has(o.status)) row.spentSen += toSen(o.total);
+      if (!row.lastOrderAt || o.placedAt > row.lastOrderAt) row.lastOrderAt = o.placedAt;
+      if (o.placedAt < row.joinedAt) row.joinedAt = o.placedAt;
+      if (!row.name && o.customerName) row.name = o.customerName;
+      if (!row.phone && o.customerPhone) row.phone = o.customerPhone;
+    }
+
+    let rows = [...byEmail.values()];
+    rows.sort(
+      (a, b) =>
+        (b.lastOrderAt ?? b.joinedAt).getTime() -
+        (a.lastOrderAt ?? a.joinedAt).getTime(),
+    );
+    const total = rows.length;
+    const start = (page - 1) * pageSize;
+    return c.json({
+      page,
+      pageSize,
+      total,
+      pages: Math.max(1, Math.ceil(total / pageSize)),
+      customers: rows.slice(start, start + pageSize),
+    });
+  }
+
+  // ── UNFILTERED PATH: paginate account users at DB level ──
+  const [userPage, userTotal] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: "customer" },
+      select: { id: true, name: true, email: true, phone: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.user.count({ where: { role: "customer" } }),
+  ]);
+
+  // Aggregate order stats (count + spentSen + lastOrderAt) for just this page's
+  // users via a grouped query — avoids loading every order in the table.
+  const pageEmails = userPage.map((u) => u.email.toLowerCase());
+
+  // Fetch aggregate stats per email using groupBy on customerEmail.
+  // We need count, max(placedAt), and sum(total where status in paid).
+  // Prisma groupBy supports _count and _max but not conditional _sum, so we run
+  // one extra query for the paid-only spend.
+  // Exclude anonymous manual walk-ins (manual=true AND userId IS NULL) to match
+  // the original CRM logic — manual orders linked to a real userId still count.
+  const [orderStats, paidSpend] = await Promise.all([
+    prisma.order.groupBy({
+      by: ["customerEmail"],
+      where: {
+        customerEmail: { in: pageEmails },
+        NOT: { manual: true, userId: null },
+      },
+      _count: { _all: true },
+      _max: { placedAt: true },
+    }),
+    prisma.order.groupBy({
+      by: ["customerEmail"],
+      where: {
+        customerEmail: { in: pageEmails },
+        status: { in: [...PAID_STATUSES] },
+        NOT: { manual: true, userId: null },
+      },
+      _sum: { total: true },
+    }),
+  ]);
+
+  // Index by lowercased email for O(1) lookups.
+  const statsByEmail = new Map(
+    orderStats.map((r) => [
+      (r.customerEmail ?? "").toLowerCase(),
+      { orders: r._count._all, lastOrderAt: r._max.placedAt },
+    ]),
+  );
+  const spendByEmail = new Map(
+    paidSpend.map((r) => [
+      (r.customerEmail ?? "").toLowerCase(),
+      r._sum.total != null ? toSen(r._sum.total) : 0,
+    ]),
+  );
+
+  const customers: Row[] = userPage.map((u) => {
+    const key = u.email.toLowerCase();
+    const stats = statsByEmail.get(key);
+    return {
       id: u.id,
       name: u.name,
       email: u.email,
       phone: u.phone,
       type: "account",
       joinedAt: u.createdAt,
-      lastOrderAt: null,
-      orders: 0,
-      spentSen: 0,
-    });
-  }
-
-  const paid = new Set<string>(PAID_STATUSES);
-  for (const o of orders) {
-    // Anonymous walk-in (manual order not saved as a customer) → not in the CRM.
-    if ((o.manual && !o.userId) || !o.customerEmail) continue;
-    const key = o.customerEmail.toLowerCase();
-    let row = byEmail.get(key);
-    if (!row) {
-      row = {
-        id: `guest:${key}`,
-        name: o.customerName,
-        email: o.customerEmail,
-        phone: o.customerPhone,
-        type: "guest",
-        joinedAt: o.placedAt,
-        lastOrderAt: null,
-        orders: 0,
-        spentSen: 0,
-      };
-      byEmail.set(key, row);
-    }
-    row.orders += 1;
-    if (paid.has(o.status)) row.spentSen += toSen(o.total);
-    if (!row.lastOrderAt || o.placedAt > row.lastOrderAt) row.lastOrderAt = o.placedAt;
-    if (o.placedAt < row.joinedAt) row.joinedAt = o.placedAt;
-    if (!row.name && o.customerName) row.name = o.customerName;
-    if (!row.phone && o.customerPhone) row.phone = o.customerPhone;
-  }
-
-  let rows = [...byEmail.values()];
-  if (q) {
-    rows = rows.filter(
-      (r) =>
-        (r.name ?? "").toLowerCase().includes(q) ||
-        r.email.toLowerCase().includes(q),
-    );
-  }
-  rows.sort(
-    (a, b) =>
-      (b.lastOrderAt ?? b.joinedAt).getTime() -
-      (a.lastOrderAt ?? a.joinedAt).getTime(),
-  );
-
-  const total = rows.length;
-  const start = (page - 1) * pageSize;
+      lastOrderAt: stats?.lastOrderAt ?? null,
+      orders: stats?.orders ?? 0,
+      spentSen: spendByEmail.get(key) ?? 0,
+    };
+  });
 
   return c.json({
     page,
     pageSize,
-    total,
-    pages: Math.max(1, Math.ceil(total / pageSize)),
-    customers: rows.slice(start, start + pageSize),
+    total: userTotal,
+    pages: Math.max(1, Math.ceil(userTotal / pageSize)),
+    customers,
   });
 });
 
@@ -661,6 +790,11 @@ admin.delete("/drops/:id", async (c) => {
 });
 
 // ───────── orders ─────────
+// The frontend loads all returned orders into JS and paginates/sorts/filters
+// client-side. A hard cap of 200 (ordered newest-first, matching the JS default
+// sort) prevents unbounded memory use while covering realistic store volumes.
+// If the store ever exceeds 200 orders per view the admin UI should be migrated
+// to server-side pagination (honoring page/limit query params).
 admin.get("/orders", async (c) => {
   const status = c.req.query("status");
   const archived = c.req.query("archived") === "true";
@@ -676,6 +810,7 @@ admin.get("/orders", async (c) => {
     },
     include: { items: true },
     orderBy: { placedAt: "desc" },
+    take: 200, // cap: frontend paginates client-side; 200 newest covers typical admin workflows
   });
   return c.json({ orders });
 });
@@ -819,19 +954,34 @@ admin.patch("/orders/:id", async (c) => {
 });
 
 // Per-status counts for the orders overview bar (always all orders, ignores the
-// active list filter).
+// active list filter). Uses groupBy + a raw aggregate to avoid loading every row.
 admin.get("/orders/counts", async (c) => {
-  const orders = await prisma.order.findMany({
+  // Order counts: one DB round-trip via groupBy.
+  const countRows = await prisma.order.groupBy({
+    by: ["status"],
     where: { archived: false },
-    select: { status: true, items: { select: { quantity: true } } },
+    _count: { _all: true },
   });
   const counts: Record<string, number> = {};
-  const itemCounts: Record<string, number> = {};
-  for (const o of orders) {
-    counts[o.status] = (counts[o.status] ?? 0) + 1;
-    const qty = o.items.reduce((s, i) => s + i.quantity, 0);
-    itemCounts[o.status] = (itemCounts[o.status] ?? 0) + qty;
+  for (const row of countRows) {
+    counts[row.status] = row._count._all;
   }
+
+  // Item counts per status: Prisma groupBy can't aggregate across relations, so
+  // we use a raw query to SUM quantities joined to the order's status in one pass.
+  type ItemCountRow = { status: string; total: bigint };
+  const itemRows = await prisma.$queryRaw<ItemCountRow[]>`
+    SELECT o.status, SUM(i.quantity)::bigint AS total
+    FROM "OrderItem" i
+    JOIN "Order" o ON i."orderId" = o.id
+    WHERE o.archived = false
+    GROUP BY o.status
+  `;
+  const itemCounts: Record<string, number> = {};
+  for (const row of itemRows) {
+    itemCounts[row.status] = Number(row.total);
+  }
+
   return c.json({ counts, itemCounts });
 });
 

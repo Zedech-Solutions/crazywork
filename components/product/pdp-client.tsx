@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { Badge } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export function PdpClient({
   sizeGuide: SizeGuideTable;
   notifyEnabled?: boolean;
 }) {
+  const router = useRouter();
   const cart = useCart();
   const sizes = useMemo(
     () => [...new Set(product.variants.map((v) => v.size))],
@@ -62,6 +64,7 @@ export function PdpClient({
   const [imageIndex, setImageIndex] = useState(0);
   const [showSticky, setShowSticky] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   const selected = product.variants.find(
     (v) => v.size === size && v.colour === colour,
@@ -88,6 +91,22 @@ export function PdpClient({
     );
   }
 
+  function onTouchStart(e: React.TouchEvent) {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+
+  function onTouchEnd(e: React.TouchEvent) {
+    if (!touchStart.current || product.images.length < 2) return;
+    const dx = e.changedTouches[0].clientX - touchStart.current.x;
+    const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
+    setImageIndex((prev) =>
+      dx < 0 ? (prev + 1) % product.images.length
+             : (prev - 1 + product.images.length) % product.images.length,
+    );
+  }
+
   function addToCart() {
     if (!selected || soldOut) return;
     cart.addLine({
@@ -110,10 +129,17 @@ export function PdpClient({
 
   return (
     <>
+      <button
+        type="button"
+        onClick={() => (window.history.length > 1 ? router.back() : router.push("/shop"))}
+        className="mb-4 inline-flex cursor-pointer items-center gap-1 text-xs uppercase tracking-[0.2em] text-brown transition hover:text-ink"
+      >
+        <ChevronLeft size={14} /> Back
+      </button>
       <div className="grid gap-10 lg:grid-cols-[7fr_5fr]">
         {/* GALLERY */}
         <div className="min-w-0">
-          <div className="group relative aspect-[4/5] overflow-hidden bg-ink">
+          <div className="group relative aspect-[4/5] overflow-hidden bg-ink" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             {image &&
               (image.type === "video" ? (
                 <video
@@ -167,6 +193,11 @@ export function PdpClient({
               </>
             )}
           </div>
+          {product.images.length > 1 && (
+            <p className="mt-2 text-center text-xs tracking-[0.2em] text-warmgrey">
+              {imageIndex + 1} / {product.images.length}
+            </p>
+          )}
           {product.images.length > 1 && (
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {product.images.map((img, i) => (

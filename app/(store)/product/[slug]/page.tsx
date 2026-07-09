@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PdpClient } from "@/components/product/pdp-client";
@@ -8,9 +9,16 @@ import { getSetting } from "@/lib/settings";
 import { toSen } from "@/lib/money";
 import { getDefaultSizeGuide, resolveSizeGuide } from "@/lib/size-guide";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
-async function getProduct(slug: string) {
+// Registers this dynamic segment for ISR: params render on demand, then cache
+// for the revalidate window. Without this export Next treats the page as
+// fully dynamic and revalidate is ignored.
+export function generateStaticParams() {
+  return [];
+}
+
+const getProduct = cache(async (slug: string) => {
   return prisma.product.findFirst({
     where: { slug, status: "active" },
     include: {
@@ -19,7 +27,7 @@ async function getProduct(slug: string) {
       drop: true,
     },
   });
-}
+});
 
 export async function generateMetadata({
   params,
@@ -53,18 +61,21 @@ export default async function ProductPage({
   const product = await getProduct(slug);
   if (!product) notFound();
 
-  const sizeGuide = resolveSizeGuide(
-    product.sizeGuide,
-    await getDefaultSizeGuide(),
-  );
-  const notifyEnabled = await getSetting("emailDropLaunch");
-
-  const related = (
-    await activeProducts({
+  // Parallelize independent follow-up queries.
+  const [defaultSizeGuide, notifyEnabled, relatedRaw] = await Promise.all([
+    getDefaultSizeGuide(),
+    getSetting("emailDropLaunch"),
+    activeProducts({
       id: { not: product.id },
       ...(product.category ? { category: product.category } : {}),
-    })
-  ).slice(0, 4);
+    }),
+  ]);
+
+  const sizeGuide = resolveSizeGuide(product.sizeGuide, defaultSizeGuide);
+
+  // Related-products fallback: if category query returned nothing, fetch any
+  // active product (still excluding current); this second query is conditional.
+  const related = relatedRaw.slice(0, 4);
   const fallback =
     related.length > 0
       ? related

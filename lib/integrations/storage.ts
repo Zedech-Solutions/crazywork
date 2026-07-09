@@ -6,6 +6,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { UPLOAD_CACHE_CONTROL } from "./media";
 import type { Storage, UploadedFile } from "./types";
 
 function randomKey(name: string): string {
@@ -53,6 +54,7 @@ export class R2Storage implements Storage {
         Key: key,
         Body: file.bytes,
         ContentType: file.contentType,
+        CacheControl: UPLOAD_CACHE_CONTROL,
       }),
     );
     return { url: `${this.publicBase}/${key}` };
@@ -69,6 +71,7 @@ export class R2Storage implements Storage {
         Bucket: this.bucket,
         Key: key,
         ContentType: file.contentType,
+        CacheControl: UPLOAD_CACHE_CONTROL,
       }),
       { expiresIn: 300 },
     );

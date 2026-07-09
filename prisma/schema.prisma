@@ -69,6 +69,7 @@ model Account {
   updatedAt             DateTime  @updatedAt
 
   @@unique([providerId, accountId])
+  @@index([userId])
 }
 
 model Session {
@@ -81,6 +82,8 @@ model Session {
   userAgent String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Verification {
@@ -90,6 +93,8 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
 }
 
 // Better Auth rate-limiter store (db-backed so limits are consistent across
@@ -131,6 +136,9 @@ model Product {
   metaDescription String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+
+  @@index([status])
+  @@index([dropId])
 }
 
 model ProductVariant {
@@ -155,6 +163,8 @@ model ProductImage {
   alt       String?
   sortOrder Int       @default(0)
   mediaType MediaType @default(image)
+
+  @@index([productId])
 }
 
 enum MediaType {
@@ -240,6 +250,12 @@ model Order {
   manual              Boolean     @default(false) // admin-created offline sale
   placedAt            DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([placedAt])
+  @@index([customerEmail])
+  @@index([discountCodeId])
 }
 
 model OrderItem {
@@ -253,6 +269,8 @@ model OrderItem {
   unitPrice Decimal  @db.Decimal(10, 2)
   costPrice Decimal? @db.Decimal(10, 2) // snapshot at order time → profit/margin
   quantity  Int
+
+  @@index([orderId])
 }
 
 // ───────────────────────── Discounts ─────────────────────────

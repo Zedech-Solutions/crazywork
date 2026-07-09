@@ -7,7 +7,7 @@ import { Parallax } from "@/components/site/parallax";
 import { RichText } from "@/components/site/rich-text";
 import { getOurStoryContent } from "@/lib/content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Our Story",

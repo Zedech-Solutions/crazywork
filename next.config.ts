@@ -1,7 +1,35 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+          // frame-ancestors 'self' (not DENY): the admin pages-builder previews
+          // the site in an iframe.
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+    ];
+  },
   images: {
+    // Vercel image-optimization quota is exhausted on the current plan —
+    // optimized requests 402 in prod. Serve originals directly (uploads are
+    // pre-compressed client-side, see components/admin/api.ts). Remove this
+    // when upgrading to Pro or switching to a Cloudflare resizing loader.
+    unoptimized: true,
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "**.r2.dev" },

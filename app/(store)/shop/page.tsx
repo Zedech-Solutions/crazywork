@@ -27,17 +27,17 @@ export default async function ShopPage({
 }) {
   const { category, sort = "newest" } = await searchParams;
 
-  const categories = (
-    await prisma.product.findMany({
+  const [categoryRows, productsRaw] = await Promise.all([
+    prisma.product.findMany({
       where: { status: "active", category: { not: null } },
       select: { category: true },
       distinct: ["category"],
-    })
-  )
-    .map((p) => p.category!)
-    .sort();
+    }),
+    activeProducts(category ? { category } : {}),
+  ]);
 
-  let products = await activeProducts(category ? { category } : {});
+  const categories = categoryRows.map((p) => p.category!).sort();
+  let products = productsRaw;
   if (sort === "price-asc") {
     products = products.sort((a, b) => Number(a.basePrice) - Number(b.basePrice));
   } else if (sort === "price-desc") {

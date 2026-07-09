@@ -5,6 +5,14 @@ import { prisma } from "@/lib/db";
 // scratch. KEEPS the superadmin, site settings, products and campaigns.
 // Deletes: non-superadmin users (cascades account/session/wishlist),
 // per-customer discount codes (signup/popup), and all orders.
+const dbUrl = process.env.DATABASE_URL ?? "";
+if (!/localhost|127\.0\.0\.1/.test(dbUrl) && process.env.ALLOW_REMOTE_RESET !== "yes") {
+  console.error(
+    "Refusing to run against a remote database. Set ALLOW_REMOTE_RESET=yes to override.",
+  );
+  process.exit(1);
+}
+
 async function main() {
   const host = (process.env.DATABASE_URL ?? "").split("@")[1]?.split(".")[0];
   console.log(`Target DB: ${host}\n`);

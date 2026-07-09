@@ -30,7 +30,7 @@ export function EmailPopup({
   const [email, setEmail] = useState("");
   const [code, setCode] = useState<string | null>(null);
   const [used, setUsed] = useState(false);
-  const [claimed, setClaimed] = useState(false);
+  const [alreadySubscribed, setAlreadySubscribed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -99,6 +99,7 @@ export function EmailPopup({
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setAlreadySubscribed(false);
     try {
       const res = await fetch("/api/subscribe", {
         method: "POST",
@@ -108,10 +109,11 @@ export function EmailPopup({
       const body = await res.json();
       if (!res.ok) {
         setError(body.message ?? "Something went wrong.");
+      } else if (body.alreadySubscribed) {
+        setAlreadySubscribed(true);
       } else {
         setCode(body.code);
         setUsed(Boolean(body.used));
-        setClaimed(Boolean(body.alreadyClaimed));
       }
     } catch {
       setError("Something went wrong.");
@@ -150,7 +152,24 @@ export function EmailPopup({
       </button>
       <DialogPrimitive.Root open={open} onOpenChange={dismiss}>
         <DialogContent aria-describedby={undefined}>
-        {code && used ? (
+        {alreadySubscribed ? (
+          <div className="text-center">
+            <DialogTitle className="headline text-4xl">
+              Already subscribed.
+            </DialogTitle>
+            <p className="mt-3 text-sm text-brown">
+              This email is already on our list — check your inbox for your
+              first-purchase code. No spam, just drops.
+            </p>
+            <Button
+              variant="accent"
+              className="mt-5"
+              onClick={() => dismiss(false)}
+            >
+              Got it
+            </Button>
+          </div>
+        ) : code && used ? (
           <div className="text-center">
             <DialogTitle className="headline text-4xl">
               Already used.
@@ -172,12 +191,10 @@ export function EmailPopup({
         ) : code ? (
           <div className="text-center">
             <DialogTitle className="headline text-4xl">
-              {claimed ? "Already yours." : "You’re in."}
+              You&apos;re in.
             </DialogTitle>
             <p className="mt-3 text-sm text-brown">
-              {claimed
-                ? `This email already has its ${percentage}% first-purchase code:`
-                : `Your ${percentage}% first-purchase code — it’s locked to this email:`}
+              {`Your ${percentage}% first-purchase code — it’s locked to this email:`}
             </p>
             <button
               className="mt-4 inline-block border border-dashed border-ember px-6 py-3 subhead text-2xl text-ember cursor-pointer"
@@ -187,9 +204,7 @@ export function EmailPopup({
               {code}
             </button>
             <p className="mt-2 text-xs text-warmgrey">
-              {claimed
-                ? "Click to copy · already emailed when you first claimed it"
-                : "Click to copy · also emailed to you"}
+              Click to copy · also emailed to you
             </p>
           </div>
         ) : (
