@@ -118,25 +118,44 @@ describe("admin shared codes", () => {
 });
 
 describe("/api/subscribe (email popup)", () => {
-  test("captures the email and returns a reusable 10% code", async () => {
+  test("new email: returns ok=true with a code and percentage", async () => {
     const email = `${RUN}-popup@example.com`;
-    const first = await app.request("/api/subscribe", {
+    const res = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
-    expect(first.status).toBe(200);
-    const firstBody = await first.json();
-    expect(firstBody.code).toMatch(/^CRAZY/);
-    expect(firstBody.percentage).toBe(10);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.code).toMatch(/^CRAZY/);
+    expect(body.percentage).toBe(10);
+    expect(body.alreadySubscribed).toBeUndefined();
+  });
 
+  test("existing email: returns alreadySubscribed=true WITHOUT disclosing the code", async () => {
+    // Subscribe first to ensure the email already has a code
+    const email = `${RUN}-popup2@example.com`;
+    await app.request("/api/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+
+    // Second request for the same email must NOT return the code
     const second = await app.request("/api/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
+    expect(second.status).toBe(200);
     const secondBody = await second.json();
-    expect(secondBody.code).toBe(firstBody.code);
+    expect(secondBody.ok).toBe(true);
+    expect(secondBody.alreadySubscribed).toBe(true);
+    // Security: no code must be disclosed to the caller
+    expect(secondBody.code).toBeUndefined();
+    expect(secondBody.percentage).toBeUndefined();
+    expect(secondBody.used).toBeUndefined();
   });
 
   test("rejects an invalid email", async () => {

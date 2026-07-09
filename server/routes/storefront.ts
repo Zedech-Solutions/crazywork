@@ -15,6 +15,7 @@ import {
 import { getSetting, getSettings } from "@/lib/settings";
 import { toSen } from "@/lib/money";
 import { renderUpsellMessage } from "@/lib/upsell";
+import { rateLimit } from "@/server/rate-limit";
 
 export const storefront = new Hono();
 
@@ -43,7 +44,7 @@ function zoneOf(raw: unknown): ShippingZone {
 }
 
 // Live cart totals + discount preview. Prices always come from the DB.
-storefront.post("/checkout/quote", async (c) => {
+storefront.post("/checkout/quote", rateLimit({ key: "checkout-quote", max: 30, windowSec: 60 }), async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const items = parseItems(body.items);
   if (!items) return c.json({ ok: false, message: "Invalid cart." }, 400);
@@ -99,7 +100,7 @@ storefront.post("/checkout/upsell", async (c) => {
   });
 });
 
-storefront.post("/checkout", async (c) => {
+storefront.post("/checkout", rateLimit({ key: "checkout", max: 10, windowSec: 60 }), async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const items = parseItems(body.items);
   const customer = body.customer ?? {};
@@ -178,7 +179,7 @@ storefront.post("/webhook/payment", async (c) => {
 });
 
 // Email popup capture → 10% first-purchase code (one per email, reused).
-storefront.post("/subscribe", async (c) => {
+storefront.post("/subscribe", rateLimit({ key: "subscribe", max: 5, windowSec: 3600 }), async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!/.+@.+\..+/.test(email)) {
@@ -194,18 +195,20 @@ storefront.post("/subscribe", async (c) => {
   // Re-submitting (or having signed up already) won't fire it again.
   if (isNew) {
     await mailer.send(email, "welcome_code", { code: record.code });
+    return c.json({
+      ok: true,
+      code: record.code,
+      percentage: record.percentage,
+      used: record.used,
+    });
   }
-  return c.json({
-    ok: true,
-    code: record.code,
-    percentage: record.percentage,
-    used: record.used,
-    alreadyClaimed: !isNew,
-  });
+  // Security: never return a personal discount code for a pre-existing email —
+  // an attacker could POST any email to harvest codes they don't own.
+  return c.json({ ok: true, alreadySubscribed: true });
 });
 
 // "Notify me" capture for an upcoming drop — emailed once when it launches.
-storefront.post("/drops/:id/notify", async (c) => {
+storefront.post("/drops/:id/notify", rateLimit({ key: "drop-notify", max: 10, windowSec: 3600 }), async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json().catch(() => ({}));
   const email =
@@ -229,7 +232,7 @@ storefront.post("/drops/:id/notify", async (c) => {
 });
 
 // Guest order lookup: order number + email must both match.
-storefront.get("/orders/lookup", async (c) => {
+storefront.get("/orders/lookup", rateLimit({ key: "orders-lookup", max: 20, windowSec: 60 }), async (c) => {
   const orderNumber = c.req.query("orderNumber")?.trim() ?? "";
   const email = c.req.query("email")?.trim().toLowerCase() ?? "";
   if (!orderNumber || !email) return c.json({ ok: false }, 400);
