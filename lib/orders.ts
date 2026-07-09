@@ -431,22 +431,28 @@ export async function createManualOrder(
       }
 
       if (deductsStock) {
-        for (const item of input.items) {
-          const v = await tx.productVariant.findUnique({
-            where: { id: item.variantId },
-          });
-          if (!v) throw new Error("An item is no longer available.");
-          if (v.stock < item.quantity) {
-            const line = byId.get(item.variantId)!;
-            throw new Error(
-              `Not enough stock for ${line.product.name} (${line.size}/${line.colour}) — ${v.stock} left.`,
-            );
-          }
-          await tx.productVariant.update({
-            where: { id: v.id },
-            data: { stock: v.stock - item.quantity },
-          });
-        }
+        // Guarded decrements in parallel — avoids sequential round-trips inside
+        // the interactive transaction while preventing read-then-write oversell.
+        await Promise.all(
+          input.items.map(async (item) => {
+            const dec = await tx.productVariant.updateMany({
+              where: { id: item.variantId, stock: { gte: item.quantity } },
+              data: { stock: { decrement: item.quantity } },
+            });
+            if (dec.count === 0) {
+              // Either variant missing or insufficient stock — surface to caller.
+              const v = await tx.productVariant.findUnique({
+                where: { id: item.variantId },
+                select: { stock: true },
+              });
+              const meta = byId.get(item.variantId);
+              if (!v) throw new Error("An item is no longer available.");
+              throw new Error(
+                `Not enough stock for ${meta?.product.name ?? item.variantId} (${meta?.size ?? "?"}/${meta?.colour ?? "?"}) — ${v.stock} left.`,
+              );
+            }
+          }),
+        );
       }
       return tx.order.create({
         data: {
@@ -503,14 +509,33 @@ export async function markOrderPaid(
   opts: { reference?: string; test?: boolean } = {},
 ): Promise<{ ok: boolean; alreadyPaid?: boolean }> {
   const result = await prisma.$transaction(async (tx) => {
+    // FIRST: atomically flip status from "pending" → "paid". If count === 0
+    // the order was already processed by a concurrent call — short-circuit.
+    const flip = await tx.order.updateMany({
+      where: { orderNumber, status: "pending" },
+      data: {
+        status: "paid",
+        paymentMethod,
+        ...(opts.reference ? { paymentRef: opts.reference } : {}),
+        ...(opts.test ? { isTest: true } : {}),
+      },
+    });
+    if (flip.count === 0) {
+      // Already paid (or doesn't exist); return alreadyPaid for the caller.
+      const existing = await tx.order.findUnique({
+        where: { orderNumber },
+        select: { status: true },
+      });
+      if (!existing) return { ok: false as const };
+      return { ok: existing.status === "paid", alreadyPaid: true };
+    }
+
+    // Fetch the full order now that we own the status transition.
     const order = await tx.order.findUnique({
       where: { orderNumber },
       include: { items: true },
     });
     if (!order) return { ok: false as const };
-    if (order.status !== "pending") {
-      return { ok: order.status === "paid", alreadyPaid: true };
-    }
 
     // Consume the discount code now — only on a real payment, so abandoned/
     // failed checkouts don't burn it.
@@ -567,35 +592,47 @@ export async function markOrderPaid(
       }
     }
 
-    for (const item of order.items) {
-      const variant = await tx.productVariant.findUnique({
-        where: {
-          productId_size_colour: {
+    // Guarded stock decrements — use updateMany with stock ≥ qty so the WHERE
+    // acts as the guard; no separate read needed. Batch all items in parallel
+    // to avoid holding the connection across sequential per-item round-trips.
+    //
+    // Variant resolution: items carry productId+size+colour (not a stored
+    // variantId), matching the productId_size_colour unique index on the table.
+    await Promise.all(
+      order.items.map(async (item) => {
+        // Attempt an atomic guarded decrement.
+        const dec = await tx.productVariant.updateMany({
+          where: {
             productId: item.productId,
             size: item.size,
             colour: item.colour,
+            stock: { gte: item.quantity },
           },
-        },
-      });
-      if (variant) {
-        await tx.productVariant.update({
-          where: { id: variant.id },
-          data: { stock: Math.max(0, variant.stock - item.quantity) },
+          data: { stock: { decrement: item.quantity } },
         });
-      }
-    }
+        if (dec.count === 0) {
+          // No row matched — stock was already at 0 or below qty. Clamp to 0
+          // and surface an oversell warning via the same notifier used elsewhere.
+          // The stock < quantity guard keeps the clamp from zeroing a variant a
+          // concurrent restock/decrement has meanwhile pushed to a satisfiable level.
+          await tx.productVariant.updateMany({
+            where: {
+              productId: item.productId,
+              size: item.size,
+              colour: item.colour,
+              stock: { lt: item.quantity },
+            },
+            data: { stock: 0 },
+          });
+          console.warn(
+            `[oversell] order ${orderNumber}: ${item.productName} (${item.size}/${item.colour}) — ` +
+              `not enough stock for qty ${item.quantity}; clamped to 0`,
+          );
+        }
+      }),
+    );
 
-    const updated = await tx.order.update({
-      where: { id: order.id },
-      data: {
-        status: "paid",
-        paymentMethod,
-        ...(opts.reference ? { paymentRef: opts.reference } : {}),
-        ...(opts.test ? { isTest: true } : {}),
-      },
-      include: { items: true },
-    });
-    return { ok: true as const, order: updated };
+    return { ok: true as const, order };
   }, TX_OPTS);
 
   if (result.ok && "order" in result && result.order) {

@@ -419,6 +419,53 @@ describe("placeOrder → markOrderPaid lifecycle", () => {
     expect(twice?.stock).toBe(once?.stock);
   });
 
+  test("concurrent markOrderPaid: side-effects fire exactly once even when both calls race through", async () => {
+    const placed = await placeOrder({
+      items: [{ variantId: inStockVariantId, quantity: 1 }],
+      shippingZone: "west",
+      customer: customer(),
+    });
+    if (!placed.ok) throw new Error("expected ok");
+
+    const stockBefore = (
+      await prisma.productVariant.findUnique({ where: { id: inStockVariantId } })
+    )!.stock;
+
+    const alertsBefore = notifier.alerts.length;
+    const mailsBefore = mailer.sent.filter(
+      (m) => m.template === "order_confirmation" && m.data.orderNumber === placed.orderNumber,
+    ).length;
+
+    // Fire both calls concurrently — only one should win the status flip.
+    const [first, second] = await Promise.all([
+      markOrderPaid(placed.orderNumber),
+      markOrderPaid(placed.orderNumber),
+    ]);
+
+    // Exactly one call wins the status flip; the other short-circuits with alreadyPaid.
+    const results = [first, second];
+    expect(results.some((r) => r.ok === true)).toBe(true);
+    expect(results.filter((r) => "alreadyPaid" in r && r.alreadyPaid).length).toBe(1);
+
+    // Stock decremented exactly once.
+    const stockAfter = (
+      await prisma.productVariant.findUnique({ where: { id: inStockVariantId } })
+    )!.stock;
+    expect(stockAfter).toBe(stockBefore - 1);
+
+    // Owner alert fired exactly once for this order.
+    const newAlerts = notifier.alerts
+      .slice(alertsBefore)
+      .filter((a) => a.orderNumber === placed.orderNumber);
+    expect(newAlerts).toHaveLength(1);
+
+    // Confirmation email sent exactly once for this order.
+    const newMails = mailer.sent.filter(
+      (m) => m.template === "order_confirmation" && m.data.orderNumber === placed.orderNumber,
+    );
+    expect(newMails.length - mailsBefore).toBe(1);
+  });
+
   test("status walks paid → processing → shipped (tracking emails the customer)", async () => {
     const placed = await placeOrder({
       items: [{ variantId: inStockVariantId, quantity: 1 }],
