@@ -118,11 +118,20 @@ describe("admin shared codes", () => {
 });
 
 describe("/api/subscribe (email popup)", () => {
+  // /subscribe is rate-limited per IP (5/hour) and the counters live in the
+  // shared dev database, so each request gets a unique IP — otherwise repeated
+  // test runs within an hour exhaust the budget and 429 unrelated tests.
+  let ipCounter = 0;
+  function uniqueIp() {
+    ipCounter += 1;
+    return `10.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}.${ipCounter}`;
+  }
+
   test("new email: returns ok=true with a code and percentage", async () => {
     const email = `${RUN}-popup@example.com`;
     const res = await app.request("/api/subscribe", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-forwarded-for": uniqueIp() },
       body: JSON.stringify({ email }),
     });
     expect(res.status).toBe(200);
@@ -138,14 +147,14 @@ describe("/api/subscribe (email popup)", () => {
     const email = `${RUN}-popup2@example.com`;
     await app.request("/api/subscribe", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-forwarded-for": uniqueIp() },
       body: JSON.stringify({ email }),
     });
 
     // Second request for the same email must NOT return the code
     const second = await app.request("/api/subscribe", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-forwarded-for": uniqueIp() },
       body: JSON.stringify({ email }),
     });
     expect(second.status).toBe(200);
@@ -161,7 +170,7 @@ describe("/api/subscribe (email popup)", () => {
   test("rejects an invalid email", async () => {
     const res = await app.request("/api/subscribe", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-forwarded-for": uniqueIp() },
       body: JSON.stringify({ email: "not-an-email" }),
     });
     expect(res.status).toBe(400);
