@@ -16,6 +16,7 @@ interface ActiveProduct {
   slug: string;
   name: string;
   image: string | null;
+  mediaType: "image" | "video" | null;
   basePriceSen: number;
   stock: number;
 }
@@ -283,15 +284,24 @@ export default function AdminDashboard() {
                   className="w-40 shrink-0 overflow-hidden rounded-xl border border-warmgrey/60 bg-white/50 transition-colors hover:border-ink"
                 >
                   <div className="relative aspect-square bg-ink">
-                    {p.image && (
-                      <Image
-                        src={p.image}
-                        alt={p.name}
-                        fill
-                        sizes="160px"
-                        className="object-cover"
-                      />
-                    )}
+                    {p.image &&
+                      (p.mediaType === "video" ? (
+                        <video
+                          src={p.image}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Image
+                          src={p.image}
+                          alt={p.name}
+                          fill
+                          sizes="160px"
+                          className="object-cover"
+                        />
+                      ))}
                     <span
                       className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
                         out
