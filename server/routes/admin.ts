@@ -148,6 +148,7 @@ admin.get("/stats", async (c) => {
       slug: p.slug,
       name: p.name,
       image: p.images[0]?.imageUrl ?? null,
+      mediaType: p.images[0]?.mediaType ?? null,
       basePriceSen: toSen(p.basePrice),
       stock: p.variants.reduce((s, v) => s + v.stock, 0),
     })),
