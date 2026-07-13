@@ -21,7 +21,17 @@ export default function AdminFaqsPage() {
   const [faqs, setFaqs] = useState<ApiFaq[]>([]);
   const [draft, setDraft] = useState({ question: "", answer: "", category: "" });
   const [error, setError] = useState<string | null>(null);
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const confirm = useConfirm();
+
+  const toggleOpen = useCallback((id: string) => {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const reload = useCallback(() => {
     adminFetch<{ faqs: ApiFaq[] }>("/faqs")
@@ -102,38 +112,51 @@ export default function AdminFaqsPage() {
       </form>
 
       <div className="mt-8 space-y-3">
-        {faqs.map((faq) => (
-          <details key={faq.id} className="border border-warmgrey bg-sand/30 p-4">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-              <span className="subhead text-base">{faq.question}</span>
-              <span className="flex items-center gap-3 text-xs text-brown">
-                {faq.category ?? "General"}
-                <span onClick={(e) => e.stopPropagation()}>
+        {faqs.map((faq) => {
+          const open = openIds.has(faq.id);
+          const panelId = `faq-panel-${faq.id}`;
+          return (
+            <div key={faq.id} className="border border-warmgrey bg-sand/30 p-4">
+              {/* Toggle and row controls are siblings — no interactive elements
+                  nested inside the disclosure control (accessibility). */}
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  onClick={() => toggleOpen(faq.id)}
+                  className="subhead flex-1 cursor-pointer text-left text-base"
+                >
+                  {faq.question}
+                </button>
+                <span className="flex items-center gap-3 text-xs text-brown">
+                  {faq.category ?? "General"}
                   <CheckboxField
                     label="Live"
                     checked={faq.published}
                     onCheckedChange={(v) => update(faq.id, { published: v })}
                   />
+                  <button
+                    type="button"
+                    aria-label="Delete FAQ"
+                    className="text-warmgrey hover:text-red-700 cursor-pointer"
+                    onClick={() => remove(faq.id)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </span>
-                <button
-                  aria-label="Delete FAQ"
-                  className="text-warmgrey hover:text-red-700 cursor-pointer"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    remove(faq.id);
-                  }}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </span>
-            </summary>
-            <Textarea
-              className="mt-3"
-              defaultValue={faq.answer}
-              onBlur={(e) => update(faq.id, { answer: e.target.value })}
-            />
-          </details>
-        ))}
+              </div>
+              {open && (
+                <Textarea
+                  id={panelId}
+                  className="mt-3"
+                  defaultValue={faq.answer}
+                  onBlur={(e) => update(faq.id, { answer: e.target.value })}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
