@@ -43,11 +43,21 @@ export interface CheckoutOrder {
 }
 
 export interface PaidEvent {
+  kind: "paid";
   orderNumber: string;
   paymentMethod: string;
   reference?: string; // Stripe payment_intent / gateway reference, if any
   test?: boolean; // paid through Stripe test mode
 }
+
+// The checkout session expired unpaid (abandoned cart) — the order's stock
+// reservation should be released back onto the shelf.
+export interface ExpiredEvent {
+  kind: "expired";
+  orderNumber: string;
+}
+
+export type PaymentEvent = PaidEvent | ExpiredEvent;
 
 export interface Payment {
   // baseUrl (the storefront origin) anchors the success/cancel redirect URLs;
@@ -56,7 +66,7 @@ export interface Payment {
     order: CheckoutOrder,
     baseUrl?: string,
   ): Promise<{ url: string; id: string }>;
-  verifyWebhook(req: Request): Promise<PaidEvent | null>;
+  verifyWebhook(req: Request): Promise<PaymentEvent | null>;
 }
 
 export interface OrderAlertItem {

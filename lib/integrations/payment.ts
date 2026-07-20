@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { getSecret, type RuntimeSecretKey } from "@/lib/secrets";
 import { getSetting } from "@/lib/settings";
-import type { CheckoutOrder, PaidEvent, Payment } from "./types";
+import type { CheckoutOrder, Payment, PaymentEvent } from "./types";
 
 export type StripeMode = "test" | "live";
 
@@ -93,6 +93,10 @@ export class StripePayment implements Payment {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: order.customerEmail,
+      // Expire the session at Stripe's 30-minute minimum. The order's stock
+      // reservation (RESERVATION_TTL_MS) is set a little longer, so a payment
+      // can never land after the hold has been swept back — no oversell.
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       metadata: { orderNumber: order.orderNumber },
       line_items: [
         {
@@ -111,7 +115,7 @@ export class StripePayment implements Payment {
     return { url: session.url, id: session.id };
   }
 
-  async verifyWebhook(req: Request): Promise<PaidEvent | null> {
+  async verifyWebhook(req: Request): Promise<PaymentEvent | null> {
     const { secretKey, webhookSecret } = await this.loadSecrets();
     if (!secretKey || !webhookSecret) return null;
     const signature = req.headers.get("stripe-signature");
@@ -125,16 +129,23 @@ export class StripePayment implements Payment {
     } catch {
       return null; // bad signature or malformed payload
     }
-    if (event.type !== "checkout.session.completed") return null;
 
     const session = event.data.object as Stripe.Checkout.Session;
     const orderNumber = session.metadata?.orderNumber;
     if (!orderNumber) return null;
+
+    // Abandoned checkout — the hold should be released.
+    if (event.type === "checkout.session.expired") {
+      return { kind: "expired", orderNumber };
+    }
+    if (event.type !== "checkout.session.completed") return null;
+
     const reference =
       typeof session.payment_intent === "string"
         ? session.payment_intent
         : (session.payment_intent?.id ?? session.id);
     return {
+      kind: "paid",
       orderNumber,
       paymentMethod: "stripe",
       reference,

@@ -9,6 +9,7 @@ import {
   markOrderPaid,
   placeOrder,
   priceCart,
+  releaseReservation,
   type CheckoutItemInput,
   type ShippingZone,
 } from "@/lib/orders";
@@ -137,6 +138,11 @@ storefront.post("/checkout", rateLimit({ key: "checkout", max: 10, windowSec: 60
     },
     orderNote: typeof body.orderNote === "string" ? body.orderNote : null,
     userId: session?.user.id ?? null,
+    // Collapses a double-click / retry into a single order + single stock hold.
+    // The client sends a fresh UUID per checkout attempt.
+    idempotencyKey:
+      c.req.header("idempotency-key") ??
+      (typeof body.idempotencyKey === "string" ? body.idempotencyKey : null),
   });
   if (!placed.ok) return c.json(placed, 422);
 
@@ -166,11 +172,17 @@ storefront.post("/checkout", rateLimit({ key: "checkout", max: 10, windowSec: 60
   return c.json({ ok: true, orderNumber: placed.orderNumber, url: checkout.url });
 });
 
-// Stripe sends checkout.session.completed here; verifyWebhook checks the
-// signature and markOrderPaid is idempotent against duplicate deliveries.
+// Stripe posts checkout.session.{completed,expired} here; verifyWebhook checks
+// the signature. markOrderPaid and releaseReservation are both idempotent, so
+// duplicate deliveries are harmless.
 storefront.post("/webhook/payment", async (c) => {
   const event = await payment.verifyWebhook(c.req.raw);
   if (!event) return c.json({ ok: false }, 400);
+  if (event.kind === "expired") {
+    // Abandoned checkout — hand the reserved stock back onto the shelf.
+    await releaseReservation(event.orderNumber);
+    return c.json({ ok: true });
+  }
   const result = await markOrderPaid(event.orderNumber, event.paymentMethod, {
     reference: event.reference,
     test: event.test,

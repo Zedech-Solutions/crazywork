@@ -253,15 +253,72 @@ export interface PlaceOrderInput {
   };
   orderNote?: string | null;
   userId?: string | null;
+  // Client-supplied key that collapses a double-click / retry into one order.
+  idempotencyKey?: string | null;
 }
 
 export type PlaceOrderResult =
   | ({ ok: false } & CheckoutError)
   | { ok: true; orderId: string; orderNumber: string; totalSen: number };
 
+// A prior order created under the same idempotency key → return it unchanged.
+function orderResult(order: {
+  id: string;
+  orderNumber: string;
+  total: { toString(): string };
+}): PlaceOrderResult {
+  return {
+    ok: true,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    totalSen: toSen(order.total),
+  };
+}
+
+// Prisma unique-constraint violation on the idempotencyKey column — a concurrent
+// request under the same key won the create race.
+function isIdempotencyConflict(e: unknown): boolean {
+  const err = e as { code?: string; meta?: { target?: unknown } };
+  return (
+    err?.code === "P2002" &&
+    JSON.stringify(err?.meta?.target ?? "").includes("idempotencyKey")
+  );
+}
+
+// How long a pending order holds its reserved stock before it auto-releases.
+// Deliberately a touch LONGER than the Stripe Checkout session expiry
+// (STRIPE_SESSION_TTL_MS, 30 min — Stripe's minimum): the hold must outlive the
+// window in which a payment can still land, so the sweep never frees stock a
+// customer is about to pay for. The gap is the safety margin.
+export const RESERVATION_TTL_MS = 35 * 60 * 1000;
+
+// Thrown inside the placement transaction when a line can't be satisfied, so the
+// whole reservation rolls back (no partial stock claim). Carries the variantId
+// to reconstruct the typed out_of_stock result for the caller.
+class ReservationError extends Error {
+  constructor(
+    readonly variantId: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export async function placeOrder(
   input: PlaceOrderInput,
 ): Promise<PlaceOrderResult> {
+  const key = input.idempotencyKey?.trim() || null;
+  // Fast path, before anything else: a retry of an already-placed submission
+  // returns that order verbatim — no re-pricing, no second reservation. Must run
+  // ahead of priceCart so a retry still succeeds even if the item has since sold
+  // out (the customer already holds a valid order).
+  if (key) {
+    const existing = await prisma.order.findUnique({
+      where: { idempotencyKey: key },
+    });
+    if (existing) return orderResult(existing);
+  }
+
   const priced = await priceCart({
     items: input.items,
     shippingZone: input.shippingZone,
@@ -279,47 +336,155 @@ export async function placeOrder(
   // The code is only *recorded* on the order here — it isn't consumed until the
   // order is actually paid (markOrderPaid), so a failed/abandoned checkout never
   // burns a single-use code.
-  const order = await prisma.order.create({
-      data: {
-        orderNumber: generateOrderNumber(),
-        userId: input.userId ?? null,
-        customerName: input.customer.name,
-        customerEmail: input.customer.email.trim().toLowerCase(),
-        customerPhone: input.customer.phone ?? null,
-        shippingAddress: input.customer.address,
-        shippingPostcode: input.customer.postcode ?? null,
-        shippingCity: input.customer.city ?? null,
-        shippingState: input.customer.state,
-        shippingZone: input.shippingZone,
-        shippingFee: toRM(pricing.shippingFee),
-        subtotal: toRM(pricing.subtotal),
-        discountAmount: toRM(pricing.discountAmount),
-        total: toRM(pricing.total),
-        appliedDiscountLabel: pricing.discountLabel,
-        discountCodeId: codeConsumed ? priced.appliedCodeId : null,
-        orderNote: input.orderNote ?? null,
-        items: {
-          create: lines.map((line) => ({
-            productId: line.productId,
-            productName: line.productName,
-            size: line.size,
-            colour: line.colour,
-            unitPrice: toRM(line.unitPrice),
-            costPrice: line.costPrice != null ? toRM(line.costPrice) : null,
-            quantity: line.quantity,
-          })),
+  try {
+    const order = await prisma.$transaction(async (tx) => {
+      // Create the order FIRST so the unique idempotencyKey claims the slot
+      // before any stock moves. A concurrent request under the same key trips
+      // the unique constraint here and rolls back without touching stock.
+      const created = await tx.order.create({
+        data: {
+          orderNumber: generateOrderNumber(),
+          userId: input.userId ?? null,
+          customerName: input.customer.name,
+          customerEmail: input.customer.email.trim().toLowerCase(),
+          customerPhone: input.customer.phone ?? null,
+          shippingAddress: input.customer.address,
+          shippingPostcode: input.customer.postcode ?? null,
+          shippingCity: input.customer.city ?? null,
+          shippingState: input.customer.state,
+          shippingZone: input.shippingZone,
+          shippingFee: toRM(pricing.shippingFee),
+          subtotal: toRM(pricing.subtotal),
+          discountAmount: toRM(pricing.discountAmount),
+          total: toRM(pricing.total),
+          appliedDiscountLabel: pricing.discountLabel,
+          discountCodeId: codeConsumed ? priced.appliedCodeId : null,
+          orderNote: input.orderNote ?? null,
+          idempotencyKey: key,
+          // Stock is now held by this order; payment must not decrement again.
+          stockReserved: true,
+          reservationExpiresAt: new Date(Date.now() + RESERVATION_TTL_MS),
+          items: {
+            create: lines.map((line) => ({
+              productId: line.productId,
+              productName: line.productName,
+              size: line.size,
+              colour: line.colour,
+              unitPrice: toRM(line.unitPrice),
+              costPrice: line.costPrice != null ? toRM(line.costPrice) : null,
+              quantity: line.quantity,
+            })),
+          },
         },
-      },
-    });
+      });
 
-  // The order confirmation email is sent on payment success (markOrderPaid),
-  // not here at placement — a pending order isn't confirmed until it's paid.
-  return {
-    ok: true,
-    orderId: order.id,
-    orderNumber: order.orderNumber,
-    totalSen: pricing.total,
-  };
+      // Reserve stock atomically. Each guarded decrement (WHERE stock >= qty) is
+      // the authoritative oversell guard — priceCart's earlier check is only an
+      // advisory fast-path. If any line can't be satisfied we throw, rolling back
+      // the order create and every decrement so far.
+      for (const line of lines) {
+        const dec = await tx.productVariant.updateMany({
+          where: { id: line.variantId, stock: { gte: line.quantity } },
+          data: { stock: { decrement: line.quantity } },
+        });
+        if (dec.count === 0) {
+          throw new ReservationError(
+            line.variantId,
+            `${line.productName} (${line.size}/${line.colour}) is sold out.`,
+          );
+        }
+      }
+
+      return created;
+    }, TX_OPTS);
+
+    // The order confirmation email is sent on payment success (markOrderPaid),
+    // not here at placement — a pending order isn't confirmed until it's paid.
+    return {
+      ok: true,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      totalSen: pricing.total,
+    };
+  } catch (e) {
+    if (e instanceof ReservationError) {
+      return {
+        ok: false,
+        error: "out_of_stock",
+        message: e.message,
+        variantId: e.variantId,
+      };
+    }
+    // Lost the create race under the same idempotency key — return the order the
+    // winner created.
+    if (key && isIdempotencyConflict(e)) {
+      const existing = await prisma.order.findUnique({
+        where: { idempotencyKey: key },
+      });
+      if (existing) return orderResult(existing);
+    }
+    throw e;
+  }
+}
+
+// Release a pending order's reserved stock back onto the shelf and cancel it.
+// Used when a checkout is abandoned (Stripe session expires) or a hold times out.
+// The `status: pending, stockReserved: true` guard on the flip makes this atomic
+// and idempotent: only the first caller restores stock; a paid order (or an
+// already-released one) is left untouched.
+export async function releaseReservation(
+  orderNumber: string,
+): Promise<{ released: boolean }> {
+  return prisma.$transaction(async (tx) => {
+    const flip = await tx.order.updateMany({
+      where: { orderNumber, status: "pending", stockReserved: true },
+      data: { status: "cancelled", stockReserved: false },
+    });
+    if (flip.count === 0) return { released: false };
+
+    const order = await tx.order.findUnique({
+      where: { orderNumber },
+      include: { items: true },
+    });
+    if (!order) return { released: false };
+
+    await Promise.all(
+      order.items.map((item) =>
+        tx.productVariant.updateMany({
+          where: {
+            productId: item.productId,
+            size: item.size,
+            colour: item.colour,
+          },
+          data: { stock: { increment: item.quantity } },
+        }),
+      ),
+    );
+    return { released: true };
+  }, TX_OPTS);
+}
+
+// Sweep pending holds whose reservation window has passed, handing their stock
+// back. A backstop for the Stripe session-expired webhook (a webhook can be
+// missed / delayed); safe to run on a schedule. Releases are idempotent, so a
+// row a concurrent webhook already released is simply skipped.
+export async function sweepExpiredReservations(
+  now = new Date(),
+): Promise<{ released: number }> {
+  const stale = await prisma.order.findMany({
+    where: {
+      status: "pending",
+      stockReserved: true,
+      reservationExpiresAt: { lt: now },
+    },
+    select: { orderNumber: true },
+  });
+  let released = 0;
+  for (const { orderNumber } of stale) {
+    const res = await releaseReservation(orderNumber);
+    if (res.released) released += 1;
+  }
+  return { released };
 }
 
 // ───────────────────────── manual / offline orders ─────────────────────────
@@ -476,6 +641,10 @@ export async function createManualOrder(
             : null,
           manual: true,
           status: input.status,
+          // If this offline sale already took stock off the shelf, mark it
+          // reserved so a later markOrderPaid (via updateOrderStatus) won't
+          // decrement a second time.
+          stockReserved: deductsStock,
           items: {
             create: lines.map((line) => ({
               productId: line.productId,
@@ -592,45 +761,52 @@ export async function markOrderPaid(
       }
     }
 
+    // Storefront orders reserve their stock at placement (order.stockReserved),
+    // so payment must not decrement again. Only orders that did NOT reserve
+    // up front — e.g. a manual pending order an admin promotes to paid — deduct
+    // here.
+    //
     // Guarded stock decrements — use updateMany with stock ≥ qty so the WHERE
     // acts as the guard; no separate read needed. Batch all items in parallel
     // to avoid holding the connection across sequential per-item round-trips.
     //
     // Variant resolution: items carry productId+size+colour (not a stored
     // variantId), matching the productId_size_colour unique index on the table.
-    await Promise.all(
-      order.items.map(async (item) => {
-        // Attempt an atomic guarded decrement.
-        const dec = await tx.productVariant.updateMany({
-          where: {
-            productId: item.productId,
-            size: item.size,
-            colour: item.colour,
-            stock: { gte: item.quantity },
-          },
-          data: { stock: { decrement: item.quantity } },
-        });
-        if (dec.count === 0) {
-          // No row matched — stock was already at 0 or below qty. Clamp to 0
-          // and surface an oversell warning via the same notifier used elsewhere.
-          // The stock < quantity guard keeps the clamp from zeroing a variant a
-          // concurrent restock/decrement has meanwhile pushed to a satisfiable level.
-          await tx.productVariant.updateMany({
+    if (!order.stockReserved) {
+      await Promise.all(
+        order.items.map(async (item) => {
+          // Attempt an atomic guarded decrement.
+          const dec = await tx.productVariant.updateMany({
             where: {
               productId: item.productId,
               size: item.size,
               colour: item.colour,
-              stock: { lt: item.quantity },
+              stock: { gte: item.quantity },
             },
-            data: { stock: 0 },
+            data: { stock: { decrement: item.quantity } },
           });
-          console.warn(
-            `[oversell] order ${orderNumber}: ${item.productName} (${item.size}/${item.colour}) — ` +
-              `not enough stock for qty ${item.quantity}; clamped to 0`,
-          );
-        }
-      }),
-    );
+          if (dec.count === 0) {
+            // No row matched — stock was already at 0 or below qty. Clamp to 0
+            // and surface an oversell warning via the same notifier used elsewhere.
+            // The stock < quantity guard keeps the clamp from zeroing a variant a
+            // concurrent restock/decrement has meanwhile pushed to a satisfiable level.
+            await tx.productVariant.updateMany({
+              where: {
+                productId: item.productId,
+                size: item.size,
+                colour: item.colour,
+                stock: { lt: item.quantity },
+              },
+              data: { stock: 0 },
+            });
+            console.warn(
+              `[oversell] order ${orderNumber}: ${item.productName} (${item.size}/${item.colour}) — ` +
+                `not enough stock for qty ${item.quantity}; clamped to 0`,
+            );
+          }
+        }),
+      );
+    }
 
     return { ok: true as const, order };
   }, TX_OPTS);
@@ -704,6 +880,12 @@ export async function updateOrderStatus(
     const paid = await markOrderPaid(order.orderNumber, "manual");
     if (!paid.ok) return { ok: false, message: "Order cannot be marked paid." };
     if (next === "paid") return { ok: true };
+  }
+
+  // Cancelling a still-pending order that holds reserved stock releases the
+  // hold back onto the shelf (idempotent — a no-op if a webhook/sweep beat us).
+  if (order.status === "pending" && order.stockReserved && next === "cancelled") {
+    await releaseReservation(order.orderNumber);
   }
 
   // Admin override: every order is freely editable — no lifecycle lock, so even
