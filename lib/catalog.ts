@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { toSen } from "@/lib/money";
@@ -105,3 +106,39 @@ export async function activeProducts(where: Prisma.ProductWhereInput = {}) {
     orderBy: { createdAt: "desc" },
   });
 }
+
+// The /shop listing is dynamic (it reads searchParams for category/sort), so
+// its Prisma reads aren't covered by Next's full-route cache the way the static
+// ISR pages (home, drops, PDP) are. These helpers cache the *results* instead,
+// sparing Neon a query on every browse during a spike. 60s TTL matches the
+// site-wide ISR window; toCardProduct output is plain JSON, so it round-trips
+// through the cache cleanly. Tagged "products" for future targeted invalidation.
+
+// Cards for the shop grid, optionally filtered by category. The category arg is
+// part of the cache key (unstable_cache keys on the function arguments).
+const cachedProductCards = unstable_cache(
+  async (category?: string) => {
+    const products = await activeProducts(category ? { category } : {});
+    return products.map(toCardProduct);
+  },
+  ["active-product-cards"],
+  { revalidate: 60, tags: ["products"] },
+);
+
+export function activeProductCards(category?: string): Promise<CardProduct[]> {
+  return cachedProductCards(category);
+}
+
+// Distinct categories across active products — param-independent, so cached once.
+export const activeCategories = unstable_cache(
+  async (): Promise<string[]> => {
+    const rows = await prisma.product.findMany({
+      where: { status: "active", category: { not: null } },
+      select: { category: true },
+      distinct: ["category"],
+    });
+    return rows.map((r) => r.category!).sort();
+  },
+  ["active-categories"],
+  { revalidate: 60, tags: ["products"] },
+);
