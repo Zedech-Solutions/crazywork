@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ProductCard } from "@/components/site/product-card";
 import { Reveal } from "@/components/site/reveal";
-import { activeProducts, toCardProduct } from "@/lib/catalog";
-import { prisma } from "@/lib/db";
+import { activeCategories, activeProductCards } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
 
+// Reads searchParams (category/sort) → rendered per request. The DB reads are
+// cached in lib/catalog (activeProductCards / activeCategories, 60s) so a
+// browse spike doesn't hit Neon on every view.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
@@ -27,21 +29,17 @@ export default async function ShopPage({
 }) {
   const { category, sort = "newest" } = await searchParams;
 
-  const [categoryRows, productsRaw] = await Promise.all([
-    prisma.product.findMany({
-      where: { status: "active", category: { not: null } },
-      select: { category: true },
-      distinct: ["category"],
-    }),
-    activeProducts(category ? { category } : {}),
+  const [categories, cards] = await Promise.all([
+    activeCategories(),
+    activeProductCards(category),
   ]);
 
-  const categories = categoryRows.map((p) => p.category!).sort();
-  let products = productsRaw;
+  // Copy before sorting — the cached array is shared, so never sort it in place.
+  let products = cards;
   if (sort === "price-asc") {
-    products = products.sort((a, b) => Number(a.basePrice) - Number(b.basePrice));
+    products = [...cards].sort((a, b) => a.basePriceSen - b.basePriceSen);
   } else if (sort === "price-desc") {
-    products = products.sort((a, b) => Number(b.basePrice) - Number(a.basePrice));
+    products = [...cards].sort((a, b) => b.basePriceSen - a.basePriceSen);
   }
 
   const href = (params: { category?: string; sort?: string }) => {
@@ -111,8 +109,8 @@ export default async function ShopPage({
       ) : (
         <div className="mt-8 grid grid-cols-2 gap-x-5 gap-y-10 md:grid-cols-3">
           {products.map((product, i) => (
-            <Reveal key={product.id} index={i % 6}>
-              <ProductCard product={toCardProduct(product)} />
+            <Reveal key={product.productId} index={i % 6}>
+              <ProductCard product={product} />
             </Reveal>
           ))}
         </div>
