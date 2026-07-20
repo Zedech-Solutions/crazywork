@@ -427,6 +427,8 @@ describe("placeOrder → markOrderPaid lifecycle", () => {
     });
     if (!placed.ok) throw new Error("expected ok");
 
+    // Stock was already claimed at placement (reservation), so this snapshot is
+    // the post-reservation level — the concurrent payments below must not move it.
     const stockBefore = (
       await prisma.productVariant.findUnique({ where: { id: inStockVariantId } })
     )!.stock;
@@ -447,11 +449,12 @@ describe("placeOrder → markOrderPaid lifecycle", () => {
     expect(results.some((r) => r.ok === true)).toBe(true);
     expect(results.filter((r) => "alreadyPaid" in r && r.alreadyPaid).length).toBe(1);
 
-    // Stock decremented exactly once.
+    // Payment must not decrement a reserved order — stock stays where placement
+    // left it, no matter how many webhook deliveries race through.
     const stockAfter = (
       await prisma.productVariant.findUnique({ where: { id: inStockVariantId } })
     )!.stock;
-    expect(stockAfter).toBe(stockBefore - 1);
+    expect(stockAfter).toBe(stockBefore);
 
     // Owner alert fired exactly once for this order.
     const newAlerts = notifier.alerts

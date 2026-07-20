@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
@@ -109,6 +109,13 @@ export default function CheckoutPage() {
     quantity: l.quantity,
   }));
   const itemsKey = JSON.stringify(items);
+  // One idempotency key per distinct cart — stable across double-clicks and
+  // network retries of the same order, fresh when the cart changes. Stops a
+  // second click from creating a duplicate order (and a duplicate stock hold).
+  const idempotencyKey = useMemo(
+    () => globalThis.crypto?.randomUUID?.() ?? `idem-${Date.now()}`,
+    [itemsKey],
+  );
 
   const refreshQuote = useCallback(
     async (withCode: string | null) => {
@@ -168,7 +175,10 @@ export default function CheckoutPage() {
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify({
           items,
           shippingZone: zone,

@@ -248,6 +248,14 @@ model Order {
   trackingNumber      String?
   items               OrderItem[]
   manual              Boolean     @default(false) // admin-created offline sale
+  // Stock is claimed at placement (reservation), not at payment. stockReserved
+  // marks that this order already holds its stock, so payment/fulfilment must
+  // not decrement again. A pending reservation is released back to stock when it
+  // expires (reservationExpiresAt) or the order is cancelled.
+  stockReserved       Boolean     @default(false)
+  reservationExpiresAt DateTime? // when a pending hold auto-releases; ~Stripe session expiry
+  // Client-supplied key that collapses double-clicks / retries to one order.
+  idempotencyKey      String?     @unique
   placedAt            DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
@@ -256,6 +264,7 @@ model Order {
   @@index([placedAt])
   @@index([customerEmail])
   @@index([discountCodeId])
+  @@index([status, reservationExpiresAt])
 }
 
 model OrderItem {

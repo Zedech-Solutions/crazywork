@@ -136,12 +136,20 @@ function completedEvent(orderNumber: string, paymentIntent = "pi_test_123") {
   };
 }
 
+function expiredEvent(orderNumber: string) {
+  return {
+    type: "checkout.session.expired",
+    data: { object: { metadata: { orderNumber } } },
+  };
+}
+
 describe("StripePayment.verifyWebhook", () => {
-  test("returns a PaidEvent for a signature-verified checkout.session.completed", async () => {
+  test("returns a paid event for a signature-verified checkout.session.completed", async () => {
     const client = fakeStripe({ event: completedEvent(ORDER.orderNumber) });
     const result = await paymentWith(client).verifyWebhook(webhookReq({ raw: 1 }));
 
     expect(result).toEqual({
+      kind: "paid",
       orderNumber: ORDER.orderNumber,
       paymentMethod: "stripe",
       reference: "pi_test_123",
@@ -159,7 +167,8 @@ describe("StripePayment.verifyWebhook", () => {
       secretKey: "sk_live_999",
       webhookSecret: "whsec_live",
     }).verifyWebhook(webhookReq({}));
-    expect(result?.test).toBe(false);
+    expect(result?.kind).toBe("paid");
+    expect(result && result.kind === "paid" && result.test).toBe(false);
   });
 
   test("returns null when the signature fails verification", async () => {
@@ -168,9 +177,18 @@ describe("StripePayment.verifyWebhook", () => {
     expect(result).toBeNull();
   });
 
-  test("ignores non-checkout.session.completed events", async () => {
+  test("returns an expired event for checkout.session.expired (abandoned cart)", async () => {
+    const client = fakeStripe({ event: expiredEvent(ORDER.orderNumber) });
+    const result = await paymentWith(client).verifyWebhook(webhookReq({}));
+    expect(result).toEqual({ kind: "expired", orderNumber: ORDER.orderNumber });
+  });
+
+  test("ignores unrelated event types", async () => {
     const client = fakeStripe({
-      event: { type: "payment_intent.created", data: { object: {} } },
+      event: {
+        type: "payment_intent.created",
+        data: { object: { metadata: { orderNumber: ORDER.orderNumber } } },
+      },
     });
     const result = await paymentWith(client).verifyWebhook(webhookReq({}));
     expect(result).toBeNull();
