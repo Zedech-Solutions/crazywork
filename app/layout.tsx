@@ -1,3 +1,4 @@
+import MetaPixel from "./meta-pixel";
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
@@ -37,7 +38,10 @@ export default function RootLayout({
       lang="en"
       className={`${barlow.variable} ${barlowCondensed.variable}`}
     >
-      <body className="antialiased">{children}</body>
+<body className="antialiased">
+  <MetaPixel />
+  {children}
+</body>
     </html>
   );
 }
