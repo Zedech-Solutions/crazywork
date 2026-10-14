@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input, Label, Select } from "@/components/ui/field";
 import { useCart } from "@/components/cart/cart-context";
+import { trackMeta } from "@/lib/meta-events";
 import { useSession } from "@/lib/auth-client";
 import { formatRM } from "@/lib/money";
 import { ALL_STATES, zoneForState } from "@/lib/states";
@@ -30,6 +31,43 @@ const UPSELL_KEY = "crazywork-checkout-upsell-seen";
 
 export default function CheckoutPage() {
   const cart = useCart();
+  const checkoutTracked = useRef(false);
+
+useEffect(() => {
+  if (checkoutTracked.current || cart.lines.length === 0) return;
+
+  function sendCheckout() {
+    if (checkoutTracked.current) return;
+
+    checkoutTracked.current = trackMeta("InitiateCheckout", {
+      content_ids: [...new Set(
+        cart.lines.map((line) => line.productId)
+      )],
+      content_type: "product",
+      contents: cart.lines.map((line) => ({
+        id: line.productId,
+        quantity: line.quantity,
+        item_price: line.unitPriceSen / 100,
+      })),
+      num_items: cart.count,
+      value: cart.subtotalSen / 100,
+      currency: "MYR",
+    });
+  }
+
+  sendCheckout();
+
+  const timer = window.setInterval(sendCheckout, 500);
+  const stop = window.setTimeout(
+    () => window.clearInterval(timer),
+    10000,
+  );
+
+  return () => {
+    window.clearInterval(timer);
+    window.clearTimeout(stop);
+  };
+}, [cart.lines, cart.count, cart.subtotalSen]);
   const { data: session } = useSession();
   const [form, setForm] = useState({
     name: "",
