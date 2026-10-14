@@ -108,7 +108,7 @@ export class StripePayment implements Payment {
           },
         },
       ],
-      success_url: `${base}/checkout/success?order=${encodeURIComponent(order.orderNumber)}`,
+      success_url: `${base}/checkout/success?order=${encodeURIComponent(order.orderNumber)}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${base}/cart`,
     });
     if (!session.url) throw new Error("Stripe did not return a checkout URL.");

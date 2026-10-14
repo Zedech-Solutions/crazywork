@@ -6,8 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+
+import { trackMeta } from "@/lib/meta-events";
 
 export interface CartLine {
   variantId: string;
@@ -45,6 +48,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [note, setNote] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const previousCart = useRef<CartLine[] | null>(null);
+
+useEffect(() => {
+  if (!hydrated) return;
+
+  const previous = previousCart.current;
+  previousCart.current = lines.map((line) => ({ ...line }));
+
+  // Do not count restoring a saved cart as adding products.
+  if (previous === null) return;
+
+  for (const line of lines) {
+    const oldQuantity =
+      previous.find((item) => item.variantId === line.variantId)
+        ?.quantity ?? 0;
+
+    const addedQuantity = line.quantity - oldQuantity;
+    if (addedQuantity <= 0) continue;
+
+    trackMeta("AddToCart", {
+      content_ids: [line.productId],
+      content_type: "product",
+      content_name: line.name,
+      contents: [{
+        id: line.productId,
+        quantity: addedQuantity,
+        item_price: line.unitPriceSen / 100,
+      }],
+      value: (line.unitPriceSen * addedQuantity) / 100,
+      currency: "MYR",
+    });
+  }
+}, [lines, hydrated]);
 
   useEffect(() => {
     try {
