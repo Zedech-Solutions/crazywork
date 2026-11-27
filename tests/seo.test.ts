@@ -180,3 +180,19 @@ describe("pageMeta", () => {
     expect(meta.twitter).toMatchObject({ images: [img] });
   });
 });
+
+describe("robots.txt", () => {
+  test("allows the site, blocks private paths and names the sitemap", async () => {
+    const { default: robots } = await import("@/app/robots");
+    const { SITE_URL } = await import("@/lib/seo");
+    const r = robots();
+    expect(r.rules).toEqual([
+      expect.objectContaining({
+        userAgent: "*",
+        allow: "/",
+        disallow: expect.arrayContaining(["/admin", "/api", "/checkout", "/account", "/cart"]),
+      }),
+    ]);
+    expect(r.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
+  });
+});
