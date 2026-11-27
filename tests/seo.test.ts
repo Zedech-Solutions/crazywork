@@ -6,6 +6,7 @@ import {
   productTitle,
   seoTitle,
   trimAtWord,
+  withProductName,
 } from "@/lib/seo";
 
 describe("SITE_URL", () => {
@@ -111,6 +112,45 @@ describe("metaDescription (admin metaDescription guard)", () => {
   test("uses the fallback when there is no text", () => {
     expect(metaDescription(null, "  ", "fallback")).toBe("fallback");
   });
+
+  test("tops up a short excerpt with the body, without emphasis markers", () => {
+    const out = metaDescription(
+      null,
+      "Our first collaboration & physical appearance!",
+      "fallback",
+      "Experience Crazywork in person at our first physical booth inside Strength Nexus. Feel the *fabric*, try on every fit, and see firsthand what it is meant to feel like.",
+    );
+    expect(out.startsWith("Our first collaboration & physical appearance! Experience")).toBe(true);
+    expect(out).not.toContain("*");
+    expect(out.length).toBeGreaterThanOrEqual(120);
+    expect(out.length).toBeLessThanOrEqual(155);
+  });
+
+  test("ends an unpunctuated excerpt before the body, and leaves a long one alone", () => {
+    expect(metaDescription(null, "Short excerpt", "fallback", "Body.")).toBe(
+      "Short excerpt. Body.",
+    );
+    expect(metaDescription(null, text, "fallback", "Body.")).not.toContain("Body.");
+  });
+});
+
+describe("withProductName", () => {
+  const shared = "Bring back aesthetics. Inspired by the 2012–2016 aesthetic gym era.";
+
+  test("names the product when the snippet doesn't, so colourways differ", () => {
+    expect(withProductName("Crazywork Form Tank - Midnight Black", shared)).toBe(
+      `Crazywork Form Tank - Midnight Black. ${shared}`,
+    );
+  });
+
+  test("leaves text that already names it (case, brand word and punctuation aside)", () => {
+    const own = "ASCEND — BARREL BAGGY PANTS Finding a pair of baggy pants…";
+    expect(withProductName("Ascend Barrel Baggy Pants", own)).toBe(own);
+    expect(withProductName("Crazywork Leg Day Tee", "The Leg Day Tee. Because.")).toBe(
+      "The Leg Day Tee. Because.",
+    );
+    expect(withProductName("Crazywork Muscle Tee", null)).toBeNull();
+  });
 });
 
 describe("trimAtWord", () => {
@@ -138,5 +178,21 @@ describe("pageMeta", () => {
     const meta = pageMeta("/product/muscle-tee", img);
     expect(meta.openGraph).toMatchObject({ images: [img] });
     expect(meta.twitter).toMatchObject({ images: [img] });
+  });
+});
+
+describe("robots.txt", () => {
+  test("allows the site, blocks private paths and names the sitemap", async () => {
+    const { default: robots } = await import("@/app/robots");
+    const { SITE_URL } = await import("@/lib/seo");
+    const r = robots();
+    expect(r.rules).toEqual([
+      expect.objectContaining({
+        userAgent: "*",
+        allow: "/",
+        disallow: expect.arrayContaining(["/admin", "/api", "/checkout", "/account", "/cart"]),
+      }),
+    ]);
+    expect(r.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
   });
 });

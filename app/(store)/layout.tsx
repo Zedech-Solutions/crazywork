@@ -18,7 +18,7 @@ export default async function StoreLayout({
       <WishlistProvider>
       <JsonLd data={[organizationJsonLd(settings), websiteJsonLd()]} />
       {settings.announcementBar && (
-        <p className="bg-ember px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-[0.25em] text-peach">
+        <p className="bg-ember px-4 py-1.5 text-center text-xs font-bold uppercase tracking-[0.25em] text-peach">
           {settings.announcementBar}
         </p>
       )}

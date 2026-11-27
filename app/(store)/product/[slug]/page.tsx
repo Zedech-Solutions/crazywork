@@ -7,7 +7,7 @@ import { activeProducts, isSoldOut, isUpcoming, toCardProduct } from "@/lib/cata
 import { categoryFor } from "@/lib/categories";
 import { prisma } from "@/lib/db";
 import { breadcrumbJsonLd, JsonLd, productJsonLd } from "@/lib/jsonld";
-import { metaDescription, pageMeta, productTitle, seoTitle } from "@/lib/seo";
+import { metaDescription, pageMeta, productTitle, seoTitle, withProductName } from "@/lib/seo";
 import { getSetting } from "@/lib/settings";
 import { toSen } from "@/lib/money";
 import { getDefaultSizeGuide, resolveSizeGuide } from "@/lib/size-guide";
@@ -49,7 +49,7 @@ export async function generateMetadata({
     },
     description: metaDescription(
       product.metaDescription,
-      product.description,
+      withProductName(product.name, product.description),
       `${product.name} — CRAZYWORK gym & lifestyle apparel.`,
     ),
     ...pageMeta(

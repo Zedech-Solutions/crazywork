@@ -1,3 +1,5 @@
+import { trimAtWord } from "@/lib/seo";
+
 // Product.category is free text typed in the admin. This map gives each known
 // value a stable landing page (/shop/<slug>), a clean label and a short intro.
 // Intros only restate facts from the live product pages. A value missing here
@@ -7,6 +9,7 @@ export interface Category {
   label: string; // singular, as typed in the admin (product titles, filter chips)
   heading: string; // landing page H1 and title
   intro: string;
+  description?: string; // meta description, when the intro is too short for one
   aliases?: string[];
 }
 
@@ -38,6 +41,9 @@ export const CATEGORIES: Category[] = [
     heading: "Oversized Gym Tees",
     intro:
       "CRAZYWORK oversized tees are cut in a relaxed, oversized fit. Check the size guide on each piece to pick your size.",
+    // shortcut: names the 4 oversized tees listed on 28 Nov 2026, update it when the range changes.
+    description:
+      "CRAZYWORK oversized tees in a relaxed, oversized fit: the Vision Tee, Leg Day Tee, Lifting Club Tee and Timeless Tee. Check the size guide on each piece.",
   },
   {
     slug: "baggy-pants",
@@ -74,6 +80,10 @@ export function categoryFor(value: string | null | undefined): Category | null {
     CATEGORIES.find((c) => [c.label, ...(c.aliases ?? [])].some((n) => norm(n) === v)) ??
     null
   );
+}
+
+export function categoryDescription(c: Category): string {
+  return c.description ?? trimAtWord(c.intro);
 }
 
 export function categoryBySlug(slug: string): Category | null {

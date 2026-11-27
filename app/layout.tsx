@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: "%s | CRAZYWORK Malaysia",
   },
   description:
-    "Malaysian gym & lifestyle apparel. Earned, not given. Shop the latest CRAZYWORK drop.",
+    "CRAZYWORK is Malaysian gym & lifestyle apparel, released in limited drops: tank tops, muscle tees, boxy tees, oversized tees, baggy pants, shorts and socks.",
   openGraph: {
     siteName: "CRAZYWORK",
     locale: "en_MY",

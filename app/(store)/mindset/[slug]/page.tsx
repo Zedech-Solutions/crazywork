@@ -74,7 +74,12 @@ export async function generateMetadata({
   if (!article) return { title: "Not found" };
   return {
     title: { absolute: brandTitle(article.title) },
-    description: metaDescription(null, article.excerpt, `${article.title} — CRAZYWORK Mindset.`),
+    description: metaDescription(
+      null,
+      article.excerpt,
+      `${article.title} — CRAZYWORK Mindset.`,
+      (article.sections ?? []).map((s) => s.body).join(" "),
+    ),
     ...pageMeta(`/mindset/${slug}`, article.image, "article"),
   };
 }

@@ -8,7 +8,7 @@ export const revalidate = 60;
 export const metadata: Metadata = {
   title: "Shipping, Sizing & Drops FAQ",
   description:
-    "Shipping, sizing, returns and drops — answers to the questions we get most at CRAZYWORK.",
+    "Answers to the questions we get most at CRAZYWORK: delivery times and shipping costs in Malaysia, how the fit runs, drop restocks and payment methods.",
   ...pageMeta("/faq"),
 };
 

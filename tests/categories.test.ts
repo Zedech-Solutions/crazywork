@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   CATEGORIES,
   categoryBySlug,
+  categoryDescription,
   categoryFor,
   categoryLinks,
 } from "@/lib/categories";
@@ -44,6 +45,13 @@ describe("categoryBySlug", () => {
   test("finds known slugs and rejects unknown ones (→ 404)", () => {
     expect(categoryBySlug("baggy-pants")?.heading).toBe("Baggy Gym Pants");
     expect(categoryBySlug("zz-not-real")).toBeNull();
+  });
+
+  test("every meta description is 120-160 chars", () => {
+    for (const c of CATEGORIES) {
+      expect(categoryDescription(c).length, c.slug).toBeGreaterThanOrEqual(120);
+      expect(categoryDescription(c).length, c.slug).toBeLessThanOrEqual(160);
+    }
   });
 
   test("slugs are unique and URL-safe", () => {

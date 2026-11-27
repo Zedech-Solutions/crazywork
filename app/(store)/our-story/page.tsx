@@ -13,7 +13,7 @@ export const revalidate = 60;
 export const metadata: Metadata = {
   title: "Our Story",
   description:
-    "CRAZYWORK started in a Malaysian gym with a simple idea: wear what you train for. This is where it began.",
+    "CRAZYWORK started in a Malaysian gym with a simple idea: wear what you train for. Aesthetic designs, premium fabric and small runs. Drops, not seasons.",
   ...pageMeta("/our-story"),
 };
 
