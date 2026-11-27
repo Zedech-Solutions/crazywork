@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CountdownTimer } from "@/components/site/countdown-timer";
 import { HeroParallax } from "@/components/site/hero-parallax";
 import { Marquee } from "@/components/site/marquee";
+import { CategoryChips } from "@/components/site/category-chips";
 import { CategoryTiles } from "@/components/site/category-tiles";
 import { CommunityCard } from "@/components/site/community-card";
 import { DropTeaser } from "@/components/site/drop-teaser";
@@ -14,7 +15,7 @@ import { ProductCard } from "@/components/site/product-card";
 import { PromoSections } from "@/components/site/promo-sections";
 import { Reveal } from "@/components/site/reveal";
 import { RichText } from "@/components/site/rich-text";
-import { activeProducts, toCardProduct } from "@/lib/catalog";
+import { activeCategories, activeProducts, toCardProduct } from "@/lib/catalog";
 import { getHomeContent } from "@/lib/content";
 import { prisma } from "@/lib/db";
 import { pageMeta } from "@/lib/seo";
@@ -25,7 +26,7 @@ export const revalidate = 60;
 export const metadata: Metadata = pageMeta("/");
 
 export default async function HomePage() {
-  const [content, featuredDrops, communityPhotos, notifyEnabled] =
+  const [content, featuredDrops, communityPhotos, notifyEnabled, categories] =
     await Promise.all([
       getHomeContent(),
     // Drops the admin chose to feature — any status (current / past / soldout) —
@@ -50,6 +51,7 @@ export default async function HomePage() {
       take: 6,
     }),
     getSetting("emailDropLaunch"),
+    activeCategories(),
   ]);
 
   // One section per featured drop. When the admin hasn't featured anything, fall
@@ -95,13 +97,14 @@ export default async function HomePage() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/30 to-transparent" />
         <div className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6">
-          <p className="eyebrow animate-rise text-ember">{content.heroEyebrow}</p>
-          <h1
+          {/* The eyebrow says what the brand sells, so it is the H1; the slogan is styling. */}
+          <h1 className="eyebrow animate-rise text-ember">{content.heroEyebrow}</h1>
+          <p
             className="headline mt-3 max-w-4xl text-5xl text-peach animate-rise sm:text-7xl lg:text-8xl"
             style={{ animationDelay: "0.1s" }}
           >
             <RichText text={content.heroHeadline} />
-          </h1>
+          </p>
           <p
             className="mt-5 max-w-md text-base text-peach/80 animate-rise"
             style={{ animationDelay: "0.15s" }}
@@ -136,6 +139,17 @@ export default async function HomePage() {
 
       {/* SHOP BY CATEGORY — renders nothing if no categories configured */}
       <CategoryTiles categories={content.categories} />
+
+      {/* What the brand sells, in text, with a link to every category page. */}
+      <section className="mx-auto max-w-7xl px-4 pt-16 sm:px-6">
+        <p className="max-w-2xl text-base text-brown">
+          CRAZYWORK is Malaysian gym &amp; lifestyle apparel: tank tops, muscle tees, boxy
+          tees, oversized tees, baggy pants, shorts and socks.
+        </p>
+        <div className="mt-4">
+          <CategoryChips values={categories} active={null} />
+        </div>
+      </section>
 
       {/* FEATURED DROPS — one stacked section per drop the admin featured */}
       {dropSections.map((section, si) => (
