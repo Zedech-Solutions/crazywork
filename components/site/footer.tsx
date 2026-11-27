@@ -42,13 +42,14 @@ export async function Footer() {
             { title: "Brand", links: BRAND_LINKS },
           ].map((column) => (
             <div key={column.title}>
-              <p className="eyebrow mb-4 text-ember">{column.title}</p>
-              <ul className="space-y-2.5">
+              <p className="eyebrow mb-1 text-ember">{column.title}</p>
+              <ul>
                 {column.links.map((link) => (
                   <li key={link.href}>
+                    {/* 44px tall tap target; its height replaces the old list spacing. */}
                     <Link
                       href={link.href}
-                      className="text-sm text-peach/80 hover:text-ember"
+                      className="inline-flex min-h-11 items-center text-sm text-peach/80 hover:text-ember"
                     >
                       {link.label}
                     </Link>
