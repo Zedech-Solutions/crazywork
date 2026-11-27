@@ -37,7 +37,7 @@ export const CATEGORIES: Category[] = [
     label: "Oversized Tee",
     heading: "Oversized Gym Tees",
     intro:
-      "CRAZYWORK oversized tees are cut in a relaxed, oversized fit. Each piece lists its fabric, colours and size guide on its own page.",
+      "CRAZYWORK oversized tees are cut in a relaxed, oversized fit. Check the size guide on each piece to pick your size.",
   },
   {
     slug: "baggy-pants",
@@ -45,7 +45,7 @@ export const CATEGORIES: Category[] = [
     heading: "Baggy Gym Pants",
     intro:
       "Part of the CRAZYWORK Training Dept., the ASCEND Barrel Baggy Pants have a relaxed barrel-leg fit, a stretchable elastic waistband and a wide, gradually flared leg opening. 310 GSM, 50% cotton and 50% polyester.",
-    // shortcut: "Bagyy Pants" is the live admin typo; remove the alias once the admin value is fixed.
+    // shortcut: alias for the live admin typo "Bagyy Pants", remove once the admin value is fixed.
     aliases: ["Bagyy Pants"],
   },
   {

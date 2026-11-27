@@ -103,8 +103,8 @@ export default async function ProductPage({
             images: product.images
               .filter((img) => img.mediaType === "image")
               .map((img) => img.imageUrl),
-            // shortcut: one Product carries one sku, so only single-variant
-            // products get one; per-size skus need ProductGroup + hasVariant.
+            // shortcut: one Product holds one sku so only single-variant products
+            // get one, move to ProductGroup + hasVariant when per-size skus matter.
             sku: product.variants.length === 1 ? product.variants[0].sku : null,
             priceSen: toSen(product.basePrice),
             inStock: !upcoming && !soldOut,
