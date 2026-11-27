@@ -4,6 +4,7 @@ import { WishlistProvider } from "@/components/wishlist/wishlist-context";
 import { EmailPopup } from "@/components/site/email-popup";
 import { Footer } from "@/components/site/footer";
 import { Navbar } from "@/components/site/navbar";
+import { JsonLd, organizationJsonLd, websiteJsonLd } from "@/lib/jsonld";
 import { getSettings } from "@/lib/settings";
 
 export default async function StoreLayout({
@@ -15,6 +16,7 @@ export default async function StoreLayout({
   return (
     <CartProvider>
       <WishlistProvider>
+      <JsonLd data={[organizationJsonLd(settings), websiteJsonLd()]} />
       {settings.announcementBar && (
         <p className="bg-ember px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-[0.25em] text-peach">
           {settings.announcementBar}

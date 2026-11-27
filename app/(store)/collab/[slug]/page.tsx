@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BlockRenderer } from "@/components/blocks/block-renderer";
 import { prisma } from "@/lib/db";
+import { blogPostingJsonLd, breadcrumbJsonLd, JsonLd } from "@/lib/jsonld";
 import { brandTitle, metaDescription, pageMeta, seoTitle } from "@/lib/seo";
 
 export const revalidate = 60;
@@ -52,6 +53,22 @@ export default async function CollabPostPage({
 
   return (
     <article className="pb-20">
+      <JsonLd
+        data={[
+          blogPostingJsonLd({
+            headline: post.title,
+            path: `/collab/${post.slug}`,
+            image: post.coverImageUrl,
+            datePublished: post.publishedAt,
+            dateModified: post.updatedAt,
+          }),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Collabs", path: "/collab" },
+            { name: post.title, path: `/collab/${post.slug}` },
+          ]),
+        ]}
+      />
       {post.coverImageUrl ? (
         <div className="relative flex min-h-[55vh] items-end overflow-hidden bg-ink py-12">
           <Image
