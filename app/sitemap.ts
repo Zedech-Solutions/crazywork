@@ -1,12 +1,11 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/db";
 import { getMindsetContent, mindsetArticleSlug } from "@/lib/content";
+import { SITE_URL as base } from "@/lib/seo";
 
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-
   const [products, posts, mindset] = await Promise.all([
     prisma.product.findMany({
       where: { status: "active" },
