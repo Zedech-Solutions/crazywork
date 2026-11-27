@@ -12,7 +12,7 @@ import { NotifyMe } from "@/components/site/notify-me";
 import { SizeGuide } from "@/components/site/size-guide";
 import { useCart } from "@/components/cart/cart-context";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
-import { formatRM } from "@/lib/money";
+import { formatPrice } from "@/lib/money";
 import type { SizeGuideTable } from "@/lib/size-guide";
 import { cn } from "@/lib/utils";
 
@@ -238,7 +238,7 @@ export function PdpClient({
             <p className="eyebrow text-brown">{product.category}</p>
           )}
           <h1 className="headline mt-1 text-5xl">{product.name}</h1>
-          <p className="mt-3 text-2xl font-bold">{formatRM(product.basePriceSen)}</p>
+          <p className="mt-3 text-2xl font-bold">{formatPrice(product.basePriceSen)}</p>
 
           {product.upcoming ? (
             <div className="mt-8 rounded-2xl border border-warmgrey bg-sand/40 p-6">
@@ -370,7 +370,7 @@ export function PdpClient({
           <div className="min-w-0 shrink-0 sm:max-w-[11rem]">
             <p className="subhead truncate text-sm leading-none">{product.name}</p>
             <p className="mt-1 text-sm font-bold leading-none">
-              {formatRM(product.basePriceSen)}
+              {formatPrice(product.basePriceSen)}
             </p>
           </div>
 

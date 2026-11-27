@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatRM, rm, toSen } from "@/lib/money";
+import { formatPrice, formatRM, rm, toSen } from "@/lib/money";
 
 describe("formatRM", () => {
   test("formats sen as RM with thousands separator and two decimals", () => {
@@ -16,6 +16,16 @@ describe("formatRM", () => {
 
   test("formats large amounts", () => {
     expect(formatRM(123456789)).toBe("RM 1,234,567.89");
+  });
+});
+
+describe("formatPrice (shopper-facing product price)", () => {
+  test("formats a real price as RM", () => {
+    expect(formatPrice(9900)).toBe("RM 99.00");
+  });
+
+  test('never shows "RM 0.00" for an unpriced product', () => {
+    expect(formatPrice(0)).toBe("Price coming soon");
   });
 });
 
