@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
 
 // Every ?sort=, ?category= and utm variant canonicalises to the clean URL.
 export const metadata: Metadata = {
-  title: "Shop",
+  title: "Shop Gym Wear",
   description:
-    "Shop CRAZYWORK gym & lifestyle apparel — tees, hoodies and shorts built for the work. Free shipping over RM150.",
+    "Shop CRAZYWORK, Malaysian gym & lifestyle apparel: tank tops, muscle tees, boxy tees, oversized tees, baggy pants, shorts and socks, built for the work.",
   ...pageMeta("/shop"),
 };
 

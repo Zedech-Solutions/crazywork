@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Clock } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getMindsetArticle, type MindsetBg } from "@/lib/content";
-import { pageMeta } from "@/lib/seo";
+import { brandTitle, metaDescription, pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -72,8 +72,8 @@ export async function generateMetadata({
   const article = await getMindsetArticle(slug);
   if (!article) return { title: "Not found" };
   return {
-    title: article.title,
-    description: article.excerpt,
+    title: { absolute: brandTitle(article.title) },
+    description: metaDescription(null, article.excerpt, `${article.title} — CRAZYWORK Mindset.`),
     ...pageMeta(`/mindset/${slug}`, article.image, "article"),
   };
 }

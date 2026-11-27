@@ -19,8 +19,8 @@ const barlowCondensed = Barlow_Condensed({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "CRAZYWORK — Wear What You Train For",
-    template: "%s · CRAZYWORK",
+    default: "CRAZYWORK | Gym Clothing Malaysia — Wear What You Train For",
+    template: "%s | CRAZYWORK Malaysia",
   },
   description:
     "Malaysian gym & lifestyle apparel. Earned, not given. Shop the latest CRAZYWORK drop.",

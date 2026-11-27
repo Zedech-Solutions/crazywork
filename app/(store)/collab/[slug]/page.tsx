@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BlockRenderer } from "@/components/blocks/block-renderer";
 import { prisma } from "@/lib/db";
-import { pageMeta } from "@/lib/seo";
+import { brandTitle, metaDescription, pageMeta, seoTitle } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -31,8 +31,12 @@ export async function generateMetadata({
   const post = await getCollab(slug);
   if (!post) return { title: "Not found" };
   return {
-    title: post.metaTitle ? { absolute: post.metaTitle } : post.title,
-    description: post.metaDescription ?? post.excerpt ?? undefined,
+    title: { absolute: seoTitle(post.metaTitle, brandTitle(post.title)) },
+    description: metaDescription(
+      post.metaDescription,
+      post.excerpt,
+      `${post.title} — a CRAZYWORK collaboration.`,
+    ),
     ...pageMeta(`/collab/${post.slug}`, post.coverImageUrl, "article"),
   };
 }

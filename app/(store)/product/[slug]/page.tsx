@@ -5,7 +5,7 @@ import { PdpClient } from "@/components/product/pdp-client";
 import { ProductCard } from "@/components/site/product-card";
 import { activeProducts, isSoldOut, isUpcoming, toCardProduct } from "@/lib/catalog";
 import { prisma } from "@/lib/db";
-import { pageMeta } from "@/lib/seo";
+import { metaDescription, pageMeta, productTitle, seoTitle } from "@/lib/seo";
 import { getSetting } from "@/lib/settings";
 import { toSen } from "@/lib/money";
 import { getDefaultSizeGuide, resolveSizeGuide } from "@/lib/size-guide";
@@ -39,11 +39,14 @@ export async function generateMetadata({
   const product = await getProduct(slug);
   if (!product) return { title: "Not found" };
   return {
-    title: product.metaTitle ? { absolute: product.metaTitle } : product.name,
-    description:
-      product.metaDescription ??
-      product.description?.slice(0, 155) ??
+    title: {
+      absolute: seoTitle(product.metaTitle, productTitle(product.name, product.category)),
+    },
+    description: metaDescription(
+      product.metaDescription,
+      product.description,
       `${product.name} — CRAZYWORK gym & lifestyle apparel.`,
+    ),
     ...pageMeta(
       `/product/${product.slug}`,
       product.images.find((img) => img.mediaType === "image")?.imageUrl,

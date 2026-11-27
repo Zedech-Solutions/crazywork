@@ -14,7 +14,7 @@ import { pageMeta } from "@/lib/seo";
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "Drops",
+  title: "Limited Drops",
   description:
     "CRAZYWORK drops — limited runs, released when they're ready. Browse the current drop and the archive.",
   ...pageMeta("/drops"),

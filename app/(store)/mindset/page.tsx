@@ -12,7 +12,7 @@ import { pageMeta } from "@/lib/seo";
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "Mindset",
+  title: "Mindset & Training Articles",
   description:
     "Fitness tips, motivation, transformation stories. Content that fuels your grind and builds the identity behind the clothing.",
   ...pageMeta("/mindset"),
