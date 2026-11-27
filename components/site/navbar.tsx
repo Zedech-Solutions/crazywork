@@ -44,29 +44,31 @@ export function Navbar() {
           ))}
         </ul>
 
-        <div className="flex items-center gap-4">
+        {/* Each control is a 44x44 tap target around the same icon; -mr-3 keeps
+            the last icon on the page edge where it sat before the padding. */}
+        <div className="-mr-3 flex items-center">
           <Link
             href="/account"
             aria-label="Account"
-            className="hover:text-ember"
+            className="flex h-11 w-11 items-center justify-center hover:text-ember"
           >
             <User size={19} />
           </Link>
           <button
             aria-label="Open cart"
-            className="relative cursor-pointer hover:text-ember"
+            className="relative flex h-11 w-11 cursor-pointer items-center justify-center hover:text-ember"
             onClick={cart.openDrawer}
           >
             <ShoppingBag size={19} />
             {cart.count > 0 && (
-              <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center bg-ember px-1 text-[10px] font-bold text-peach">
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center bg-ember px-1 text-[10px] font-bold text-peach">
                 {cart.count}
               </span>
             )}
           </button>
           <button
             aria-label="Menu"
-            className="cursor-pointer lg:hidden"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center lg:hidden"
             onClick={() => setMobileOpen((v) => !v)}
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
