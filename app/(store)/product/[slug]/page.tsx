@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PdpClient } from "@/components/product/pdp-client";
 import { ProductCard } from "@/components/site/product-card";
 import { activeProducts, isSoldOut, isUpcoming, toCardProduct } from "@/lib/catalog";
+import { categoryFor } from "@/lib/categories";
 import { prisma } from "@/lib/db";
 import { metaDescription, pageMeta, productTitle, seoTitle } from "@/lib/seo";
 import { getSetting } from "@/lib/settings";
@@ -40,7 +41,10 @@ export async function generateMetadata({
   if (!product) return { title: "Not found" };
   return {
     title: {
-      absolute: seoTitle(product.metaTitle, productTitle(product.name, product.category)),
+      absolute: seoTitle(
+        product.metaTitle,
+        productTitle(product.name, categoryFor(product.category)?.label ?? product.category),
+      ),
     },
     description: metaDescription(
       product.metaDescription,
@@ -91,7 +95,7 @@ export default async function ProductPage({
           slug: product.slug,
           name: product.name,
           description: product.description,
-          category: product.category,
+          category: categoryFor(product.category)?.label ?? product.category,
           basePriceSen: toSen(product.basePrice),
           isNew: product.isNew,
           isLimited: product.isLimited,

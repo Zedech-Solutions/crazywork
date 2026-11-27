@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { categoryFor } from "@/lib/categories";
 import { toSen } from "@/lib/money";
 import { isProductSoldOut } from "@/lib/orders";
 import type { CardProduct } from "@/components/site/product-card";
@@ -66,7 +67,7 @@ export function toCardProduct(product: CardProductSource): CardProduct {
     productId: product.id,
     slug: product.slug,
     name: product.name,
-    category: product.category,
+    category: categoryFor(product.category)?.label ?? product.category,
     basePriceSen: toSen(product.basePrice),
     image: sortedImages[0]?.imageUrl ?? null,
     imageType: sortedImages[0]?.mediaType ?? "image",

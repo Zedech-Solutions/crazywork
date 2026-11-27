@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CategoryChips } from "@/components/site/category-chips";
 import { ProductCard } from "@/components/site/product-card";
 import { Reveal } from "@/components/site/reveal";
 import { activeCategories, activeProductCards } from "@/lib/catalog";
+import { categoryFor, categoryLinks } from "@/lib/categories";
 import { pageMeta } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
@@ -11,13 +13,21 @@ import { cn } from "@/lib/utils";
 // browse spike doesn't hit Neon on every view.
 export const dynamic = "force-dynamic";
 
-// Every ?sort=, ?category= and utm variant canonicalises to the clean URL.
-export const metadata: Metadata = {
-  title: "Shop Gym Wear",
-  description:
-    "Shop CRAZYWORK, Malaysian gym & lifestyle apparel: tank tops, muscle tees, boxy tees, oversized tees, baggy pants, shorts and socks, built for the work.",
-  ...pageMeta("/shop"),
-};
+// ?sort= and utm variants canonicalise to /shop; an old ?category= link to its
+// category page.
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string }>;
+}): Promise<Metadata> {
+  const match = categoryFor((await searchParams).category);
+  return {
+    title: "Shop Gym Wear",
+    description:
+      "Shop CRAZYWORK, Malaysian gym & lifestyle apparel: tank tops, muscle tees, boxy tees, oversized tees, baggy pants, shorts and socks, built for the work.",
+    ...pageMeta(match ? `/shop/${match.slug}` : "/shop"),
+  };
+}
 
 const SORTS = [
   { key: "newest", label: "Newest" },
@@ -62,33 +72,11 @@ export default async function ShopPage({
       </p>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-y border-warmgrey py-3">
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={href({ category: undefined })}
-            className={cn(
-              "eyebrow px-3 py-1.5 border transition-colors",
-              !category
-                ? "border-ink bg-ink text-peach"
-                : "border-warmgrey text-brown hover:border-ink",
-            )}
-          >
-            All
-          </Link>
-          {categories.map((cat) => (
-            <Link
-              key={cat}
-              href={href({ category: cat })}
-              className={cn(
-                "eyebrow px-3 py-1.5 border transition-colors",
-                category === cat
-                  ? "border-ink bg-ink text-peach"
-                  : "border-warmgrey text-brown hover:border-ink",
-              )}
-            >
-              {cat}
-            </Link>
-          ))}
-        </div>
+        <CategoryChips
+          values={categories}
+          active={category ? (categoryLinks([category])[0]?.href ?? null) : null}
+          allHref={href({ category: undefined })}
+        />
         <div className="flex gap-2">
           {SORTS.map((s) => (
             <Link

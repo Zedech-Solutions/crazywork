@@ -1,12 +1,14 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/db";
+import { activeCategories } from "@/lib/catalog";
+import { categoryFor } from "@/lib/categories";
 import { getMindsetContent, mindsetArticleSlug } from "@/lib/content";
 import { SITE_URL as base } from "@/lib/seo";
 
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [products, posts, mindset] = await Promise.all([
+  const [products, posts, mindset, categories] = await Promise.all([
     prisma.product.findMany({
       where: { status: "active" },
       select: { slug: true, updatedAt: true },
@@ -16,7 +18,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { slug: true, updatedAt: true },
     }),
     getMindsetContent(),
+    activeCategories(),
   ]);
+  const categorySlugs = new Set(
+    categories.flatMap((c) => categoryFor(c)?.slug ?? []),
+  );
 
   const staticPages = [
     "",
@@ -35,6 +41,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticPages,
+    ...[...categorySlugs].map((slug) => ({
+      url: `${base}/shop/${slug}`,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    })),
     ...products.map((p) => ({
       url: `${base}/product/${p.slug}`,
       lastModified: p.updatedAt,
