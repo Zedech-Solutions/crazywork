@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Clock } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getMindsetArticle, type MindsetBg } from "@/lib/content";
+import { pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -73,10 +74,7 @@ export async function generateMetadata({
   return {
     title: article.title,
     description: article.excerpt,
-    openGraph: {
-      images: article.image ? [{ url: article.image }] : [],
-      type: "article",
-    },
+    ...pageMeta(`/mindset/${slug}`, article.image, "article"),
   };
 }
 

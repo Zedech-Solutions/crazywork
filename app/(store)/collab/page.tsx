@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/field";
 import { Reveal } from "@/components/site/reveal";
 import { prisma } from "@/lib/db";
+import { pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
   title: "Collabs",
   description:
     "CRAZYWORK collaborations — built with the gyms and athletes who do the work.",
+  ...pageMeta("/collab"),
 };
 
 async function getCollabs() {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ProductCard } from "@/components/site/product-card";
 import { Reveal } from "@/components/site/reveal";
 import { activeCategories, activeProductCards } from "@/lib/catalog";
+import { pageMeta } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 // Reads searchParams (category/sort) → rendered per request. The DB reads are
@@ -10,10 +11,12 @@ import { cn } from "@/lib/utils";
 // browse spike doesn't hit Neon on every view.
 export const dynamic = "force-dynamic";
 
+// Every ?sort=, ?category= and utm variant canonicalises to the clean URL.
 export const metadata: Metadata = {
   title: "Shop",
   description:
     "Shop CRAZYWORK gym & lifestyle apparel — tees, hoodies and shorts built for the work. Free shipping over RM150.",
+  ...pageMeta("/shop"),
 };
 
 const SORTS = [

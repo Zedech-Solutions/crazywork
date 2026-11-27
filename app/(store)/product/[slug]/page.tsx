@@ -5,6 +5,7 @@ import { PdpClient } from "@/components/product/pdp-client";
 import { ProductCard } from "@/components/site/product-card";
 import { activeProducts, isSoldOut, isUpcoming, toCardProduct } from "@/lib/catalog";
 import { prisma } from "@/lib/db";
+import { pageMeta } from "@/lib/seo";
 import { getSetting } from "@/lib/settings";
 import { toSen } from "@/lib/money";
 import { getDefaultSizeGuide, resolveSizeGuide } from "@/lib/size-guide";
@@ -43,12 +44,10 @@ export async function generateMetadata({
       product.metaDescription ??
       product.description?.slice(0, 155) ??
       `${product.name} — CRAZYWORK gym & lifestyle apparel.`,
-    openGraph: {
-      images: (() => {
-        const cover = product.images.find((img) => img.mediaType === "image");
-        return cover ? [{ url: cover.imageUrl }] : [];
-      })(),
-    },
+    ...pageMeta(
+      `/product/${product.slug}`,
+      product.images.find((img) => img.mediaType === "image")?.imageUrl,
+    ),
   };
 }
 

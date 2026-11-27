@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BlockRenderer } from "@/components/blocks/block-renderer";
 import { prisma } from "@/lib/db";
+import { pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -32,10 +33,7 @@ export async function generateMetadata({
   return {
     title: post.metaTitle ? { absolute: post.metaTitle } : post.title,
     description: post.metaDescription ?? post.excerpt ?? undefined,
-    openGraph: {
-      images: post.coverImageUrl ? [{ url: post.coverImageUrl }] : [],
-      type: "article",
-    },
+    ...pageMeta(`/collab/${post.slug}`, post.coverImageUrl, "article"),
   };
 }
 

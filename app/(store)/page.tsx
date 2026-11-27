@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CountdownTimer } from "@/components/site/countdown-timer";
@@ -16,9 +17,12 @@ import { RichText } from "@/components/site/rich-text";
 import { activeProducts, toCardProduct } from "@/lib/catalog";
 import { getHomeContent } from "@/lib/content";
 import { prisma } from "@/lib/db";
+import { pageMeta } from "@/lib/seo";
 import { getSetting } from "@/lib/settings";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = pageMeta("/");
 
 export default async function HomePage() {
   const [content, featuredDrops, communityPhotos, notifyEnabled] =

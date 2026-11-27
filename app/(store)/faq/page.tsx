@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
+import { pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
   title: "FAQ",
   description:
     "Shipping, sizing, returns and drops — answers to the questions we get most at CRAZYWORK.",
+  ...pageMeta("/faq"),
 };
 
 export default async function FaqPage() {
