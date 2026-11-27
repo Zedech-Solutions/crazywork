@@ -11,7 +11,7 @@ export const revalidate = 60;
 export const metadata: Metadata = {
   title: "Gym & Athlete Collabs",
   description:
-    "CRAZYWORK collaborations — built with the gyms and athletes who do the work.",
+    "CRAZYWORK collabs are built with the gyms, athletes and creators who put in the work. Limited runs, made together. Browse every CRAZYWORK collaboration.",
   ...pageMeta("/collab"),
 };
 

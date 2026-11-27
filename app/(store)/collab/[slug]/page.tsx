@@ -37,6 +37,10 @@ export async function generateMetadata({
       post.metaDescription,
       post.excerpt,
       `${post.title} — a CRAZYWORK collaboration.`,
+      post.blocks
+        .filter((b) => b.type === "paragraph")
+        .map((b) => String((b.data as { text?: unknown } | null)?.text ?? ""))
+        .join(" "),
     ),
     ...pageMeta(`/collab/${post.slug}`, post.coverImageUrl, "article"),
   };

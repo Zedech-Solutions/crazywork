@@ -16,7 +16,7 @@ export const revalidate = 60;
 export const metadata: Metadata = {
   title: "Limited Drops",
   description:
-    "CRAZYWORK drops — limited runs, released when they're ready. Browse the current drop and the archive.",
+    "CRAZYWORK drops are limited runs of gym & lifestyle apparel. When a drop sells out, it stays sold out. Browse the live drop, upcoming drops and the archive.",
   ...pageMeta("/drops"),
 };
 

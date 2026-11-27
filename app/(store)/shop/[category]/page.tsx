@@ -4,9 +4,9 @@ import { CategoryChips } from "@/components/site/category-chips";
 import { ProductCard } from "@/components/site/product-card";
 import { Reveal } from "@/components/site/reveal";
 import { activeCategories, activeProductCards } from "@/lib/catalog";
-import { categoryBySlug, categoryFor } from "@/lib/categories";
+import { categoryBySlug, categoryDescription, categoryFor } from "@/lib/categories";
 import { breadcrumbJsonLd, JsonLd } from "@/lib/jsonld";
-import { pageMeta, trimAtWord } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -25,7 +25,7 @@ export async function generateMetadata({
   if (!category) return { title: "Not found" };
   return {
     title: category.heading,
-    description: trimAtWord(category.intro),
+    description: categoryDescription(category),
     ...pageMeta(`/shop/${category.slug}`),
   };
 }

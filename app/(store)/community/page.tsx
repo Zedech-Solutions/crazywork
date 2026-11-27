@@ -10,7 +10,7 @@ export const revalidate = 60;
 export const metadata: Metadata = {
   title: "Community",
   description:
-    "Real customers, real work. The CRAZYWORK community — tag us to get featured.",
+    "The CRAZYWORK community: no paid models, just the people doing the work in CRAZYWORK gym & lifestyle apparel. Tag us on Instagram to get featured.",
   ...pageMeta("/community"),
 };
 

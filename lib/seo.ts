@@ -76,12 +76,27 @@ export function trimAtWord(text: string, max = 155): string {
 }
 
 // Admin metaDescriptions under 70 chars are placeholders ("pants"); they lose
-// to the page's own text, trimmed to snippet length.
+// to the page's own text, trimmed to snippet length. Text under 120 chars (a
+// short excerpt) is topped up with the page's body so the snippet isn't thin.
 export function metaDescription(
   admin: string | null | undefined,
   text: string | null | undefined,
   fallback: string,
+  body?: string | null,
 ): string {
   if (admin && admin.trim().length >= 70) return admin.trim();
-  return text?.trim() ? trimAtWord(text) : fallback;
+  let t = text?.trim() ?? "";
+  // Bodies carry the editors' *emphasis* markers.
+  const more = body?.replace(/\*/g, "").trim();
+  if (t.length < 120 && more) t = t ? `${t}${/[.!?…]$/.test(t) ? "" : "."} ${more}` : more;
+  return t ? trimAtWord(t) : fallback;
+}
+
+// Colourways share pasted copy, so a snippet that doesn't name its product
+// starts with the name; that keeps each page's description unique.
+export function withProductName(name: string, text: string | null | undefined) {
+  if (!text?.trim()) return text;
+  const base = name.trim().replace(/^crazywork\s+/i, "") || name.trim();
+  const spaced = (s: string) => ` ${words(s).join(" ")} `;
+  return spaced(trimAtWord(text)).includes(spaced(base)) ? text : `${name.trim()}. ${text}`;
 }
