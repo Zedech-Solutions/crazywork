@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   brandTitle,
   metaDescription,
+  pageMeta,
   productTitle,
   seoTitle,
   trimAtWord,
@@ -121,5 +122,21 @@ describe("trimAtWord", () => {
     const out = trimAtWord("one two three four five", 12);
     expect(out).toBe("one two…");
     expect(out.length).toBeLessThanOrEqual(12);
+  });
+});
+
+describe("pageMeta", () => {
+  test("sets the canonical, og:url and the default share image", () => {
+    const meta = pageMeta("/shop");
+    expect(meta.alternates).toEqual({ canonical: "/shop" });
+    expect(meta.openGraph).toMatchObject({ url: "/shop", images: ["/opengraph-image.png"] });
+    expect(meta).not.toHaveProperty("twitter");
+  });
+
+  test("uses the page's own image for og:image and twitter:image", () => {
+    const img = "https://pub-x.r2.dev/uploads/a.webp";
+    const meta = pageMeta("/product/muscle-tee", img);
+    expect(meta.openGraph).toMatchObject({ images: [img] });
+    expect(meta.twitter).toMatchObject({ images: [img] });
   });
 });

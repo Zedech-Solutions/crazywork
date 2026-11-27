@@ -28,6 +28,8 @@ export function pageMeta(
       url: path,
       images: [image || DEFAULT_SHARE_IMAGE],
     },
+    // Without this, twitter:image stays the site-wide app/twitter-image.png.
+    ...(image ? { twitter: { card: "summary_large_image", images: [image] } } : {}),
   };
 }
 
