@@ -3,6 +3,7 @@ import { CommunityCard } from "@/components/site/community-card";
 import { Reveal } from "@/components/site/reveal";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
+import { pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
   title: "Community",
   description:
     "Real customers, real work. The CRAZYWORK community — tag us to get featured.",
+  ...pageMeta("/community"),
 };
 
 export default async function CommunityPage() {

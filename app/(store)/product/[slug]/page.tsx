@@ -4,7 +4,10 @@ import { notFound } from "next/navigation";
 import { PdpClient } from "@/components/product/pdp-client";
 import { ProductCard } from "@/components/site/product-card";
 import { activeProducts, isSoldOut, isUpcoming, toCardProduct } from "@/lib/catalog";
+import { categoryFor } from "@/lib/categories";
 import { prisma } from "@/lib/db";
+import { breadcrumbJsonLd, JsonLd, productJsonLd } from "@/lib/jsonld";
+import { metaDescription, pageMeta, productTitle, seoTitle } from "@/lib/seo";
 import { getSetting } from "@/lib/settings";
 import { toSen } from "@/lib/money";
 import { getDefaultSizeGuide, resolveSizeGuide } from "@/lib/size-guide";
@@ -38,17 +41,21 @@ export async function generateMetadata({
   const product = await getProduct(slug);
   if (!product) return { title: "Not found" };
   return {
-    title: product.metaTitle ? { absolute: product.metaTitle } : product.name,
-    description:
-      product.metaDescription ??
-      product.description?.slice(0, 155) ??
-      `${product.name} — CRAZYWORK gym & lifestyle apparel.`,
-    openGraph: {
-      images: (() => {
-        const cover = product.images.find((img) => img.mediaType === "image");
-        return cover ? [{ url: cover.imageUrl }] : [];
-      })(),
+    title: {
+      absolute: seoTitle(
+        product.metaTitle,
+        productTitle(product.name, categoryFor(product.category)?.label ?? product.category),
+      ),
     },
+    description: metaDescription(
+      product.metaDescription,
+      product.description,
+      `${product.name} — CRAZYWORK gym & lifestyle apparel.`,
+    ),
+    ...pageMeta(
+      `/product/${product.slug}`,
+      product.images.find((img) => img.mediaType === "image")?.imageUrl,
+    ),
   };
 }
 
@@ -72,6 +79,10 @@ export default async function ProductPage({
   ]);
 
   const sizeGuide = resolveSizeGuide(product.sizeGuide, defaultSizeGuide);
+  const category = categoryFor(product.category);
+  const path = `/product/${product.slug}`;
+  const soldOut = isSoldOut(product);
+  const upcoming = isUpcoming(product);
 
   // Related-products fallback: if category query returned nothing, fetch any
   // active product (still excluding current); this second query is conditional.
@@ -83,18 +94,41 @@ export default async function ProductPage({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <JsonLd
+        data={[
+          productJsonLd({
+            name: product.name,
+            path,
+            description: product.description,
+            images: product.images
+              .filter((img) => img.mediaType === "image")
+              .map((img) => img.imageUrl),
+            // shortcut: one Product holds one sku so only single-variant products
+            // get one, move to ProductGroup + hasVariant when per-size skus matter.
+            sku: product.variants.length === 1 ? product.variants[0].sku : null,
+            priceSen: toSen(product.basePrice),
+            inStock: !upcoming && !soldOut,
+          }),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Shop", path: "/shop" },
+            ...(category ? [{ name: category.heading, path: `/shop/${category.slug}` }] : []),
+            { name: product.name, path },
+          ]),
+        ].filter(Boolean)}
+      />
       <PdpClient
         product={{
           productId: product.id,
           slug: product.slug,
           name: product.name,
           description: product.description,
-          category: product.category,
+          category: category?.label ?? product.category,
           basePriceSen: toSen(product.basePrice),
           isNew: product.isNew,
           isLimited: product.isLimited,
-          soldOut: isSoldOut(product),
-          upcoming: isUpcoming(product),
+          soldOut,
+          upcoming,
           countdownUntil: product.drop?.countdownUntil
             ? product.drop.countdownUntil.toISOString()
             : null,

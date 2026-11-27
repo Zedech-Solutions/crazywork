@@ -6,6 +6,7 @@ import { Media } from "@/components/site/media";
 import { Parallax } from "@/components/site/parallax";
 import { RichText } from "@/components/site/rich-text";
 import { getOurStoryContent } from "@/lib/content";
+import { pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
   title: "Our Story",
   description:
     "CRAZYWORK started in a Malaysian gym with a simple idea: wear what you train for. This is where it began.",
+  ...pageMeta("/our-story"),
 };
 
 export default async function OurStoryPage() {

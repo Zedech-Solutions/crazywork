@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Clock } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getMindsetArticle, type MindsetBg } from "@/lib/content";
+import { blogPostingJsonLd, breadcrumbJsonLd, JsonLd } from "@/lib/jsonld";
+import { brandTitle, metaDescription, pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -71,12 +73,9 @@ export async function generateMetadata({
   const article = await getMindsetArticle(slug);
   if (!article) return { title: "Not found" };
   return {
-    title: article.title,
-    description: article.excerpt,
-    openGraph: {
-      images: article.image ? [{ url: article.image }] : [],
-      type: "article",
-    },
+    title: { absolute: brandTitle(article.title) },
+    description: metaDescription(null, article.excerpt, `${article.title} — CRAZYWORK Mindset.`),
+    ...pageMeta(`/mindset/${slug}`, article.image, "article"),
   };
 }
 
@@ -102,6 +101,21 @@ export default async function MindsetArticlePage({
           </span>
         </div>
 
+        {/* Mindset articles have no date fields, so the markup has none. */}
+        <JsonLd
+          data={[
+            blogPostingJsonLd({
+              headline: article.title,
+              path: `/mindset/${slug}`,
+              image: article.image,
+            }),
+            breadcrumbJsonLd([
+              { name: "Home", path: "/" },
+              { name: "Mindset", path: "/mindset" },
+              { name: article.title, path: `/mindset/${slug}` },
+            ]),
+          ]}
+        />
         <h1 className={`headline mt-5 text-5xl leading-[0.95] sm:text-7xl ${theme.heading}`}>
           {article.title}
         </h1>

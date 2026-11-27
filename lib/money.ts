@@ -13,6 +13,12 @@ export function formatRM(sen: number): string {
   return `RM ${formatAmount(sen)}`;
 }
 
+// Shopper-facing product price. Upcoming products are saved at RM 0 until
+// priced, and "RM 0.00" reads as free.
+export function formatPrice(sen: number): string {
+  return sen > 0 ? formatRM(sen) : "Price coming soon";
+}
+
 export function rm(ringgit: number): number {
   return Math.round(ringgit * 100);
 }

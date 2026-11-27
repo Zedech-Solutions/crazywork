@@ -9,13 +9,15 @@ import { toCardProduct } from "@/lib/catalog";
 import { getDropsContent } from "@/lib/content";
 import { prisma } from "@/lib/db";
 import { getSetting } from "@/lib/settings";
+import { pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "Drops",
+  title: "Limited Drops",
   description:
     "CRAZYWORK drops — limited runs, released when they're ready. Browse the current drop and the archive.",
+  ...pageMeta("/drops"),
 };
 
 const STATUS_BADGE: Record<string, { label: string; tone: "ember" | "sand" | "ink" }> =

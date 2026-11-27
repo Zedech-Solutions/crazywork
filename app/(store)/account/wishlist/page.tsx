@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
 import { useSession } from "@/lib/auth-client";
-import { formatRM } from "@/lib/money";
+import { formatPrice } from "@/lib/money";
 
 interface Item {
   productId: string;
@@ -84,7 +84,7 @@ export default function WishlistPage() {
                 )}
               </Link>
               <p className="mt-2 truncate subhead text-sm">{item.name}</p>
-              <p className="text-xs text-brown">{formatRM(item.basePriceSen)}</p>
+              <p className="text-xs text-brown">{formatPrice(item.basePriceSen)}</p>
             </div>
           ))}
         </div>

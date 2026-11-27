@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/field";
 import { useCart } from "@/components/cart/cart-context";
 import { WishlistButton } from "@/components/wishlist/wishlist-button";
-import { formatRM } from "@/lib/money";
+import { formatPrice } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 export interface CardProduct {
@@ -191,7 +191,7 @@ export function ProductCard({
           )}
         </div>
         <p className={cn("font-bold", large ? "text-lg" : "text-sm")}>
-          {formatRM(product.basePriceSen)}
+          {formatPrice(product.basePriceSen)}
         </p>
       </div>
     </Link>

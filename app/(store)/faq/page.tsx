@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
+import { faqJsonLd, JsonLd } from "@/lib/jsonld";
+import { pageMeta } from "@/lib/seo";
 
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "FAQ",
+  title: "Shipping, Sizing & Drops FAQ",
   description:
     "Shipping, sizing, returns and drops — answers to the questions we get most at CRAZYWORK.",
+  ...pageMeta("/faq"),
 };
 
 export default async function FaqPage() {
@@ -19,6 +22,7 @@ export default async function FaqPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
+      {faqs.length > 0 && <JsonLd data={faqJsonLd(faqs)} />}
       <p className="eyebrow text-ember">Help</p>
       <h1 className="headline mt-1 text-7xl">FAQ</h1>
 

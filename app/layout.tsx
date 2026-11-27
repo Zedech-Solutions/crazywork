@@ -1,6 +1,7 @@
 import MetaPixel from "./meta-pixel";
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
+import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -16,10 +17,10 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.BETTER_AUTH_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "CRAZYWORK — Wear What You Train For",
-    template: "%s · CRAZYWORK",
+    default: "CRAZYWORK | Gym Clothing Malaysia — Wear What You Train For",
+    template: "%s | CRAZYWORK Malaysia",
   },
   description:
     "Malaysian gym & lifestyle apparel. Earned, not given. Shop the latest CRAZYWORK drop.",
